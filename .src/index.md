@@ -64,13 +64,13 @@ Link to external sites, pages, or email addresses with the syntax `[text](url)`:
 
 Embed images using `![alt text](image-url)` syntax:
 
-![Sample Image](/iran.webp)
+![Sample Image](https://raw.githubusercontent.com/MahdiMirzadeh/kaveh/refs/heads/master/iran.webp)
 
 ### Clickable Images
 
 Combine links and images to create clickable graphics: `[![alt](image-url)](link-url)`
 
-[![Clickable Image](/iran.webp)](https://example.com)
+[![Clickable Image](https://raw.githubusercontent.com/MahdiMirzadeh/kaveh/refs/heads/master/iran.webp)](https://example.com)
 
 ## Organizing Content with Lists
 
