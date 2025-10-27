@@ -1045,6 +1045,41 @@ __HTML TEMPLATE__
         margin: 0.5em 0;
     }
     
+    /* Form controls */
+    textarea, input, button {
+        font-family: inherit;
+        font-size: 1em;
+        border: 1px solid #d0d0d0;
+        border-radius: 4px;
+        padding: 0.5em;
+    }
+    textarea, input[type="text"], input[type="password"], input[type="email"] {
+        width: 100%;
+        background-color: #fff;
+        color: #333;
+        box-sizing: border-box;
+        margin: 0.5em 0;
+    }
+    textarea {
+        resize: vertical;
+        min-height: 4em;
+    }
+    button {
+        background-color: #0066cc;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        padding: 0.6em 1.2em;
+        margin: 0.5em 0.5em 0.5em 0;
+        transition: background-color 0.2s ease;
+    }
+    button:hover {
+        background-color: #0052a3;
+    }
+    button:active {
+        background-color: #003d7a;
+    }
+    
     @media print {
         body {
             max-width: none;
@@ -1102,6 +1137,20 @@ __HTML TEMPLATE__
         }
         .heading-anchor:hover .octicon {
             fill: #cdf;
+        }
+        textarea, input[type="text"], input[type="password"], input[type="email"] {
+            background-color: #0d0d0d;
+            color: #e0e0e0;
+            border-color: #444;
+        }
+        button {
+            background-color: #0066cc;
+        }
+        button:hover {
+            background-color: #3388dd;
+        }
+        button:active {
+            background-color: #0052a3;
         }
     }
 </style>
