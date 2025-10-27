@@ -1,32 +1,133 @@
-kaveh
+Kaveh
 =====
-kaveh is a simple website generator, it aims to generate static html files from markdown files, no databases and bloat-web, just texts.
+Kaveh is a lightweight static site generator written in pure POSIX shell. It converts 
+Markdown files into beautiful, responsive HTML pages with zero external dependencies.
+
+Features
+--------
+- Pure POSIX shell (no external parsers needed)
+- Complete Markdown support with extensions
+- Automatic heading anchors with permalink icons
+- Footnotes with auto-linking
+- Syntax-highlighted code blocks
+- Tables, lists, and task lists
+- Built-in responsive dark mode
+- Minified CSS output
+- SEO-friendly semantic HTML
 
 Requirements
 ------------
-You need a markdown parser in your $PATH directory, for example install discount:
-
-    pacman -S discount
-    apt install discount
-    dnf install discount
+Only standard POSIX utilities (sh, sed, awk, find, cp).
+No external dependencies or parsers required.
 
 Installation
 ------------
-Copy the script in your $PATH directory (if necessary as root):
-    cp kaveh /usr/bin
+Copy the script to your $PATH directory (if necessary as root):
+
+    cp kaveh /usr/local/bin/
+    chmod +x /usr/local/bin/kaveh
 
 Usage
 -----
-
     kaveh
-    kaveh -i [INPUT DIRECTORY] -o [OUTPUT DIRECTORY]
+    kaveh -i [INPUT] -o [OUTPUT]
+    kaveh -v
 
-If you don't want to set the methods, these are the defaults:
-     [INPUT DIRECTORY] == empty, use $PWD/src
-    [OUTPUT DIRECTORY] == empty, use $PWD/out
+If you don't specify directories, these are the defaults:
+     [INPUT]  == $PWD/.src
+    [OUTPUT]  == $PWD
 
-Automation
-----------
-Example of scripting to automate the process of file generation:
+Markdown Metadata
+-----------------
+Add metadata at the top of your .md files using HTML comments:
 
-    kaveh -i /var/doc/mahdym.ir -o /var/www/mahdym.ir
+    <!---
+    title: My Page Title
+    icon: /favicon.png
+    description: A brief description
+    --->
+
+All fields are optional and will use defaults if not specified.
+
+Custom Heading IDs
+------------------
+Create custom anchor IDs for headings:
+
+    ## My Section {#custom-id}
+
+Headings without custom IDs get auto-generated IDs based on their text.
+All headings show a permalink icon on hover.
+
+Footnotes
+---------
+Add footnotes to your text:
+
+    Text with footnote[^1].
+    
+    [^1]: Footnote content.
+
+Code Blocks
+-----------
+Use fenced code blocks with optional language identifiers:
+
+    ```python
+    def hello():
+        print("Hello!")
+    ```
+
+Escaping
+--------
+Use backslashes to escape Markdown syntax:
+
+    \* not italic \*
+    \# not a heading
+
+Directory Structure
+-------------------
+Recommended project layout:
+
+    myproject/
+    ├── kaveh
+    ├── src/
+    │   ├── index.md
+    │   └── images/
+    └── out/
+        ├── index.html
+        └── images/
+
+Non-markdown files (images, CSS, etc.) are automatically copied to output.
+
+Automation Examples
+-------------------
+Build script:
+
+    #!/bin/sh
+    kaveh -i /var/doc/mysite -o /var/www/mysite
+
+Watch and rebuild:
+
+    #!/bin/sh
+    while inotifywait -r -e modify src/; do
+        kaveh -i src -o out
+    done
+
+Deploy after build:
+
+    #!/bin/sh
+    kaveh -i src -o out
+    rsync -avz --delete out/ user@server:/var/www/html/
+
+Customization
+-------------
+The HTML template is embedded in the script after the __HTML TEMPLATE__ marker.
+You can edit CSS, HTML structure, and default values directly in the script.
+
+Default values at the top of the script:
+
+    KVH_PAGE_NAME="Kaveh"
+    KVH_PAGE_ICON="/logo.png"
+    KVH_PAGE_DESC="Your default description"
+
+License
+-------
+MIT License - Copyright (C) 2021-2025 Mahdi Mirzadeh <mahdi@mirzadeh.pro>
