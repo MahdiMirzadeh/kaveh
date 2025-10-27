@@ -2,20 +2,20 @@
 #
 # This is a simple statis website generator script.
 #
-KVH_COPYRIGHT="Copyright (C) 2021-2022 Mahdi Mirzade"
-KVH_VERSION="0.1"
-KVH_SRC="${PWD}/src"
-KVH_DST="${PWD}/out"
+KVH_COPYRIGHT="Copyright (C) 2021-2025 Mahdi Mirzadeh"
+KVH_VERSION="0.2"
+KVH_SRC="${PWD}/.src"
+KVH_DST="${PWD}"
 
 # Default page values
 KVH_PAGE_NAME="Kaveh"
-KVH_PAGE_ICON="\/logo.png"
+KVH_PAGE_ICON="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAFxAAABcQG7iuH0AAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAhVJREFUOI2FkU1IlHEQxn/z33fbJSIIDx0ioUChj0Mm7R7KNRc7SAUdyiDCDoqXCC9BeKpTHYRIyFMRBBWEUFCgh0rIbFM3lKAsSKJLEn2Z7Yfr7vvOdAjD6FXnNPA8/GaeGVilekZS7ReG9x9ZTnerAVSkLUC6ukaaq8N0b2K6tm12IRbJ+7FM3pfGQhCd7ExksgCXM+lNvgXbRfgW8e080P4fwIxzgnb7lAtYLA52v29039uyCmrBekzuOvEuQnAtdAPBvqR3vHkAcHsyOUggxwz6/6STaoQ4sfhP8oXQiB7A0NTOR3OVNRR9dSbulcGsAGBxjG4tFtLAdChgd837ppWO2PO88ThwCywapq/6BcOGxGyX4rJhuiw298YSVcWoNhUqUamok4q6M4G5kgI5dRRVbuR811wwV8j57lk+gLzKd28RoGs0iUqfc1wydQEic2f3Pj20dFrnk/S4mdzE6WsJJCniGv5GOFr3csBBB0ariwSjK2R6B2DiNqsj9c8NTtRnHwaqp0wjvcsCxFpN3ZaqwrqW7MGBzxLmuTqWqPI13m++dpSABeLMAfMlqn9Bx50Dj08uer0wwOnE+I/eTMMLdZEhD4ZLfjAvJntU3AxwZak3EgbY0JLcKM59UnN1anZ9Qdxw2WRrGRlcUD5sO1z/dap/ypbdwMOrr5hLgUyISEoCQYwZjNoIria3tvgRmAX4DdT85ywDHCURAAAAAElFTkSuQmCC"
 KVH_PAGE_DESC="Kaveh is a simple website generator, it aims to generate static html files from markdown files, no databases and bloat-web, just texts."
 
 while getopts :vi:o: flag; do
     case "${flag}" in
-        i) KVH_SRC=${OPTARG};;
-        o) KVH_DST=${OPTARG};;
+        i) KVH_SRC=${OPTARG%/};;
+        o) KVH_DST=${OPTARG%/};;
         v)
             printf "\n"
             printf " _  __               _      \tKaveh v%s\n" "${KVH_VERSION}"
@@ -33,49 +33,805 @@ while getopts :vi:o: flag; do
     esac
 done
 
-getvalue() { sed -e "/.*<\!---.*KVH.*/,/--->/!d" "$1" | sed -n "/^$2/I p" | sed 's/^.*: //'; }
-md2html() { markdown "$1" | sed -e '/.*<\!---.*KVH.*/,/--->/d'; }
+getvalue() {
+    awk -v key="$2" '
+        /<!---/,/--->/{
+            if (tolower($0) ~ "^" tolower(key) ":") {
+                sub(/^[^:]+:[[:space:]]*/, "")
+                print
+                exit
+            }
+        }
+    ' "$1"
+}
 
-# Generate html files in source from markdowns.
-find "${KVH_SRC}" -name "*.md" | while read FILE; do
-    FILE_NAME="${FILE##$KVH_SRC/}"
-    FILE_DIR="$(dirname "${FILE_NAME}")"
+md2html() {
+    # Remove KVH metadata comments and parse markdown to HTML using pure POSIX shell
+    sed -e '/<!---/,/--->/d' -e '/<!---/,/-->/{/^[[:space:]]*$/d;}' "$1" | awk '
+    BEGIN {
+        in_code_block = 0
+        in_html_block = 0
+        in_table = 0
+        buffer = ""
+        line_count = 0
+        # Stack-based list management
+        list_depth = 0
+        for (i = 0; i < 100; i++) {
+            list_type[i] = ""
+            list_indent[i] = -1
+        }
+        # Footnote storage
+        footnote_count = 0
+        # Definition list tracking
+        in_dl = 0
+        # Heading ID tracking to prevent duplicates
+        for (i = 0; i < 1000; i++) {
+            heading_ids[i] = ""
+        }
+        heading_id_count = 0
+    }
 
-    [ -d "${KVH_DST}/${FILE_DIR}" ] \
-        || mkdir -p "${KVH_DST}/${FILE_DIR}"
+    function escape_html(text) {
+        gsub(/&/, "\\&amp;", text)
+        gsub(/</, "\\&lt;", text)
+        gsub(/>/, "\\&gt;", text)
+        gsub(/"/, "\\&quot;", text)
+        return text
+    }
 
-    PAGE_ICON="$(getvalue "${FILE}" "icon")"
-    PAGE_NAME="$(getvalue "${FILE}" "title")"
-    PAGE_DESC="$(getvalue "${FILE}" "description")"
+    function process_inline_formatting(text,    protected_count, code_count, i, code, placeholder, protected_text, tag_match, pos, escaped_count, footnote_count_local, fn_num, fn_html) {
+        # Handle escaped characters first - protect them from markdown processing
+        escaped_count = 0
+        while (match(text, /\\[\\`*_{}\[\]()#+.!|~^=-]/)) {
+            escaped_char = substr(text, RSTART+1, 1)
+            placeholder = "§§KVHESCAPED" escaped_count "§§"
+            escaped_protected[escaped_count] = escaped_char
+            text = substr(text, 1, RSTART-1) placeholder substr(text, RSTART+RLENGTH)
+            escaped_count++
+        }
 
+        # Protect existing HTML tags (like <pre>, <div>, etc)
+        protected_count = 0
+        while (match(text, /<[a-zA-Z\/][^>]*>/)) {
+            protected_text = substr(text, RSTART, RLENGTH)
+            placeholder = "§§KVHPROTECTED" protected_count "§§"
+            protected[protected_count] = protected_text
+            text = substr(text, 1, RSTART-1) placeholder substr(text, RSTART+RLENGTH)
+            protected_count++
+        }
+
+        # Process footnote references [^1] early to avoid conflicts
+        footnote_count_local = 0
+        while (match(text, /\[\^[0-9]+\]/)) {
+            fn_num = substr(text, RSTART+2, RLENGTH-3)
+            placeholder = "§§KVHFOOTNOTE" footnote_count_local "§§"
+            footnote_protected[footnote_count_local] = "<sup><a href=\"#fn" fn_num "\" id=\"fnref" fn_num "\">[" fn_num "]</a></sup>"
+            text = substr(text, 1, RSTART-1) placeholder substr(text, RSTART+RLENGTH)
+            footnote_count_local++
+        }
+
+        # Process code spans and protect them from further formatting
+        code_count = 0
+        while (match(text, /`[^`]+`/)) {
+            code = substr(text, RSTART+1, RLENGTH-2)
+            placeholder = "§§KVHCODE" code_count "§§"
+            code_protected[code_count] = "<code>" escape_html(code) "</code>"
+            text = substr(text, 1, RSTART-1) placeholder substr(text, RSTART+RLENGTH)
+            code_count++
+        }
+
+        # Process highlight (==text==)
+        while (match(text, /==[^=]+==/)) {
+            highlight = substr(text, RSTART+2, RLENGTH-4)
+            highlight_html = "<mark>" highlight "</mark>"
+            text = substr(text, 1, RSTART-1) highlight_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process bold (**text** and __text__)
+        while (match(text, /\*\*[^*]+\*\*/)) {
+            bold = substr(text, RSTART+2, RLENGTH-4)
+            bold_html = "<strong>" bold "</strong>"
+            text = substr(text, 1, RSTART-1) bold_html substr(text, RSTART+RLENGTH)
+        }
+        while (match(text, /__[^_]+__/)) {
+            bold = substr(text, RSTART+2, RLENGTH-4)
+            bold_html = "<strong>" bold "</strong>"
+            text = substr(text, 1, RSTART-1) bold_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process italic (*text* and _text_)
+        while (match(text, /\*[^*]+\*/)) {
+            italic = substr(text, RSTART+1, RLENGTH-2)
+            italic_html = "<em>" italic "</em>"
+            text = substr(text, 1, RSTART-1) italic_html substr(text, RSTART+RLENGTH)
+        }
+        while (match(text, /_[^_]+_/)) {
+            italic = substr(text, RSTART+1, RLENGTH-2)
+            italic_html = "<em>" italic "</em>"
+            text = substr(text, 1, RSTART-1) italic_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process strikethrough (~~text~~)
+        while (match(text, /~~[^~]+~~/)) {
+            strike = substr(text, RSTART+2, RLENGTH-4)
+            strike_html = "<del>" strike "</del>"
+            text = substr(text, 1, RSTART-1) strike_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process subscript (H~2~O)
+        while (match(text, /~[^~]+~/)) {
+            sub_text = substr(text, RSTART+1, RLENGTH-2)
+            sub_html = "<sub>" sub_text "</sub>"
+            text = substr(text, 1, RSTART-1) sub_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process superscript (X^2^)
+        while (match(text, /\^[^^]+\^/)) {
+            sup_text = substr(text, RSTART+1, RLENGTH-2)
+            sup_html = "<sup>" sup_text "</sup>"
+            text = substr(text, 1, RSTART-1) sup_html substr(text, RSTART+RLENGTH)
+        }
+
+        # Process images ![alt](src) - MUST come before links
+        while (match(text, /!\[[^\]]*\]\([^)]*\)/)) {
+            # Skip the leading ! and [ to get just the content
+            img_match = substr(text, RSTART+2, RLENGTH-3)
+            split_pos = index(img_match, "](")
+            if (split_pos > 0) {
+                alt_text = substr(img_match, 1, split_pos-1)
+                src_url = substr(img_match, split_pos+2)
+                img_html = "<img alt=\"" escape_html(alt_text) "\" src=\"" escape_html(src_url) "\" />"
+                text = substr(text, 1, RSTART-1) img_html substr(text, RSTART+RLENGTH)
+            }
+        }
+
+        # Process links [text](url)
+        while (match(text, /\[[^\]]*\]\([^)]*\)/)) {
+            link_text = substr(text, RSTART+1, RLENGTH-2)
+            split_pos = index(link_text, "](")
+            if (split_pos > 0) {
+                text_part = substr(link_text, 1, split_pos-1)
+                url_part = substr(link_text, split_pos+2)
+                link_html = "<a href=\"" escape_html(url_part) "\">" text_part "</a>"
+                text = substr(text, 1, RSTART-1) link_html substr(text, RSTART+RLENGTH)
+            }
+        }
+
+        # Process line breaks (two or more spaces at end of line)
+        if (match(text, /  +$/)) {
+            text = substr(text, 1, RSTART-1) "<br />"
+        }
+
+        # Restore footnotes
+        for (i = footnote_count_local - 1; i >= 0; i--) {
+            placeholder = "§§KVHFOOTNOTE" i "§§"
+            while ((pos = index(text, placeholder)) > 0) {
+                text = substr(text, 1, pos - 1) footnote_protected[i] substr(text, pos + length(placeholder))
+            }
+        }
+
+        # Restore code spans using manual replacement to avoid gsub issues with special chars
+        for (i = code_count - 1; i >= 0; i--) {
+            placeholder = "§§KVHCODE" i "§§"
+            while ((pos = index(text, placeholder)) > 0) {
+                text = substr(text, 1, pos - 1) code_protected[i] substr(text, pos + length(placeholder))
+            }
+        }
+
+        # Restore protected HTML tags
+        for (i = protected_count - 1; i >= 0; i--) {
+            placeholder = "§§KVHPROTECTED" i "§§"
+            while ((pos = index(text, placeholder)) > 0) {
+                text = substr(text, 1, pos - 1) protected[i] substr(text, pos + length(placeholder))
+            }
+        }
+
+        # Restore escaped characters last
+        for (i = escaped_count - 1; i >= 0; i--) {
+            placeholder = "§§KVHESCAPED" i "§§"
+            while ((pos = index(text, placeholder)) > 0) {
+                text = substr(text, 1, pos - 1) escaped_protected[i] substr(text, pos + length(placeholder))
+            }
+        }
+
+        return text
+    }
+
+    function process_table_row(line) {
+        # Split table row by | and create table cells
+        gsub(/^\s*\|\s*/, "", line)
+        gsub(/\s*\|\s*$/, "", line)
+
+        result = "<tr>"
+        n = split(line, cells, /\s*\|\s*/)
+        for (i = 1; i <= n; i++) {
+            cell = cells[i]
+            # Check if it is a header separator row
+            if (cell ~ /^:?-+:?$/) {
+                return ""
+            }
+            # Clean up cell content
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
+            result = result "<td>" process_inline_formatting(cell) "</td>"
+        }
+        result = result "</tr>"
+        return result
+    }
+
+    function close_lists_to_depth(target_depth) {
+        while (list_depth > target_depth) {
+            print "</li></" list_type[list_depth] ">"
+            list_type[list_depth] = ""
+            list_indent[list_depth] = -1
+            list_depth--
+        }
+    }
+
+    function close_all_lists() {
+        close_lists_to_depth(0)
+    }
+
+    {
+        line = $0
+        line_count++
+
+        # Handle code blocks (fenced with ``` or indented) - MUST come first
+        if (line ~ /^```/) {
+            if (in_code_block) {
+                print "</pre></div>"
+                in_code_block = 0
+                buffer = ""
+            } else {
+                close_all_lists()
+                if (in_dl) {
+                    print "</dl>"
+                    in_dl = 0
+                }
+                if (buffer != "") {
+                    print "<p>" process_inline_formatting(buffer) "</p>"
+                    buffer = ""
+                }
+                # Extract language if specified
+                lang = substr(line, 4)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", lang)
+                if (lang != "") {
+                    print "<div class=\"code-block\" data-lang=\"" lang "\"><pre>"
+                } else {
+                    print "<div class=\"code-block\"><pre>"
+                }
+                in_code_block = 1
+            }
+            next
+        }
+
+        if (in_code_block) {
+            print escape_html(line)
+            next
+        }
+
+        # Handle footnote definitions [^1]: text
+        if (match(line, /^\[\^[0-9]+\]:/)) {
+            close_all_lists()
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            match(line, /^\[\^[0-9]+\]:/)
+            fn_num = substr(line, 3, RLENGTH-4)
+            fn_text = substr(line, RLENGTH+2)
+            gsub(/^[[:space:]]+/, "", fn_text)
+            footnotes[fn_num] = fn_text
+            footnote_count++
+            next
+        }
+
+        # Handle HTML blocks (pass through as-is)
+        if (line ~ /^<[^>]+>.*<\/[^>]+>$/ || line ~ /^<[^>]+\/>$/) {
+            close_all_lists()
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            print line
+            next
+        }
+
+        # Handle horizontal rules
+        if (line ~ /^(\*{3,}|-{3,}|_{3,})\s*$/) {
+            close_all_lists()
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            print "<hr />"
+            next
+        }
+
+        # Handle headings with optional custom IDs (# Heading or # Heading {#custom-id})
+        if (match(line, /^(#{1,6})\s+(.*)/)) {
+            close_all_lists()
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            match(line, /^(#{1,6})/)
+            level = RLENGTH
+            heading_text = substr(line, RSTART + level + 1)
+            gsub(/^[[:space:]]+/, "", heading_text)
+            
+            # Check for custom ID {#custom-id}
+            custom_id = ""
+            if (match(heading_text, /\{#[^}]+\}$/)) {
+                custom_id = substr(heading_text, RSTART+2, RLENGTH-3)
+                heading_text = substr(heading_text, 1, RSTART-1)
+                gsub(/[[:space:]]+$/, "", heading_text)
+            } else {
+                # Generate automatic ID from heading text
+                custom_id = tolower(heading_text)
+                # Remove markdown formatting for ID generation
+                gsub(/[*_~`\[\](){}]/, "", custom_id)
+                # Replace spaces and special chars with hyphens
+                gsub(/[^a-z0-9]+/, "-", custom_id)
+                # Remove leading/trailing hyphens
+                gsub(/^-+|-+$/, "", custom_id)
+            }
+            
+            # Check for duplicate IDs and append number if needed
+            if (custom_id != "") {
+                base_id = custom_id
+                id_suffix = 1
+                is_duplicate = 0
+                
+                # Check if ID already exists
+                for (j = 0; j < heading_id_count; j++) {
+                    if (heading_ids[j] == custom_id) {
+                        is_duplicate = 1
+                        break
+                    }
+                }
+                
+                # Keep incrementing suffix until we find unique ID
+                while (is_duplicate) {
+                    id_suffix++
+                    custom_id = base_id "-" id_suffix
+                    is_duplicate = 0
+                    for (j = 0; j < heading_id_count; j++) {
+                        if (heading_ids[j] == custom_id) {
+                            is_duplicate = 1
+                            break
+                        }
+                    }
+                }
+                
+                # Store this ID
+                heading_ids[heading_id_count] = custom_id
+                heading_id_count++
+                
+                print "<h" level " id=\"" custom_id "\" class=\"heading-with-anchor\">" process_inline_formatting(heading_text) "<a href=\"#" custom_id "\" class=\"heading-anchor\" aria-label=\"Permalink\"><svg class=\"octicon\" viewBox=\"0 0 16 16\" width=\"16\" height=\"16\" aria-hidden=\"true\"><path d=\"m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z\"></path></svg></a></h" level ">"
+            } else {
+                print "<h" level ">" process_inline_formatting(heading_text) "</h" level ">"
+            }
+            next
+        }
+
+        # Handle blockquotes (> at start)
+        if (line ~ /^>\s*/) {
+            close_all_lists()
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            gsub(/^>\s*/, "", line)
+            print "<blockquote>" process_inline_formatting(line) "</blockquote>"
+            next
+        }
+
+        # Handle tables - must start and end with | for proper table syntax
+        if (line ~ /^\s*\|.*\|\s*$/) {
+            close_all_lists()
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            if (!in_table) {
+                print "<table>"
+                in_table = 1
+            }
+            table_row = process_table_row(line)
+            if (table_row != "") {
+                print table_row
+            }
+            next
+        } else if (in_table) {
+            print "</table>"
+            in_table = 0
+        }
+
+        # Handle definition lists (term on one line, : definition on next)
+        # Dont trigger for list items
+        if (line ~ /^[^ \t]/ && line !~ /^[[:space:]]*$/ && line !~ /:/ && line !~ /^[-*+]\s/ && line !~ /^[0-9]+\.\s/ && getline next_line > 0) {
+            if (next_line ~ /^:[[:space:]]/) {
+                close_all_lists()
+                if (buffer != "") {
+                    print "<p>" process_inline_formatting(buffer) "</p>"
+                    buffer = ""
+                }
+                if (!in_dl) {
+                    print "<dl>"
+                    in_dl = 1
+                }
+                print "<dt>" process_inline_formatting(line) "</dt>"
+                gsub(/^:[[:space:]]*/, "", next_line)
+                print "<dd>" process_inline_formatting(next_line) "</dd>"
+                next
+            } else {
+                # Put the line back into processing
+                line = line "\n" next_line
+            }
+        }
+
+        # Handle task lists - [x] or [ ]
+        is_task = line ~ /^[ \t]*[-*+]\s+\[([ xX])\]\s+/
+        
+        if (is_task) {
+            # Get indent level
+            match(line, /^[ \t]*/)
+            indent = RLENGTH
+            
+            # Extract checkbox state
+            match(line, /\[([ xX])\]/)
+            checked = (substr(line, RSTART+1, 1) ~ /[xX]/) ? "checked" : ""
+            
+            # Remove list marker and checkbox
+            gsub(/^[ \t]*[-*+]\s+\[([ xX])\]\s+/, "", line)
+            content = line
+            ltype = "ul"
+            
+            # Find target depth based on indentation
+            target_depth = 0
+            for (i = 1; i <= list_depth; i++) {
+                if (indent > list_indent[i]) {
+                    target_depth = i
+                }
+            }
+            
+            # Start or continue list
+            if (list_depth > 0 && indent > list_indent[list_depth]) {
+                list_depth++
+                list_type[list_depth] = ltype
+                list_indent[list_depth] = indent
+                print "<" ltype " class=\"task-list\">"
+                print "<li class=\"task-list-item\"><input type=\"checkbox\" disabled " checked " /> " process_inline_formatting(content)
+            } else if (list_depth > 0 && indent <= list_indent[list_depth]) {
+                while (list_depth > 0 && indent < list_indent[list_depth]) {
+                    print "</li></" list_type[list_depth] ">"
+                    list_type[list_depth] = ""
+                    list_indent[list_depth] = -1
+                    list_depth--
+                }
+                if (list_depth > 0 && indent == list_indent[list_depth]) {
+                    print "</li>"
+                    print "<li class=\"task-list-item\"><input type=\"checkbox\" disabled " checked " /> " process_inline_formatting(content)
+                } else {
+                    list_depth++
+                    list_type[list_depth] = ltype
+                    list_indent[list_depth] = indent
+                    print "<" ltype " class=\"task-list\">"
+                    print "<li class=\"task-list-item\"><input type=\"checkbox\" disabled " checked " /> " process_inline_formatting(content)
+                }
+            } else {
+                if (in_dl) {
+                    print "</dl>"
+                    in_dl = 0
+                }
+                if (buffer != "") {
+                    print "<p>" process_inline_formatting(buffer) "</p>"
+                    buffer = ""
+                }
+                list_depth = 1
+                list_type[1] = ltype
+                list_indent[1] = indent
+                print "<" ltype " class=\"task-list\">"
+                print "<li class=\"task-list-item\"><input type=\"checkbox\" disabled " checked " /> " process_inline_formatting(content)
+            }
+            next
+        }
+
+        # Handle regular lists with proper nesting
+        is_ul = line ~ /^[ \t]*[-*+]\s+/
+        is_ol = line ~ /^[ \t]*[0-9]+\.\s+/
+        
+        if (is_ul || is_ol) {
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            # Get indent level and content
+            match(line, /^[ \t]*/)
+            indent = RLENGTH
+            
+            # Determine list type
+            if (is_ul) {
+                gsub(/^[ \t]*[-*+]\s+/, "", line)
+                ltype = "ul"
+            } else {
+                gsub(/^[ \t]*[0-9]+\.\s+/, "", line)
+                ltype = "ol"
+            }
+            
+            content = line
+            
+            # Find target depth based on indentation
+            target_depth = 0
+            for (i = 1; i <= list_depth; i++) {
+                if (indent > list_indent[i]) {
+                    target_depth = i
+                }
+            }
+            
+            # If this is more indented than current, its nested
+            if (list_depth > 0 && indent > list_indent[list_depth]) {
+                # Start nested list
+                list_depth++
+                list_type[list_depth] = ltype
+                list_indent[list_depth] = indent
+                print "<" ltype ">"
+                print "<li>" process_inline_formatting(content)
+            }
+            # If same or less indented, close lists as needed
+            else if (list_depth > 0 && indent <= list_indent[list_depth]) {
+                # Close lists until we find matching indent or go to root
+                while (list_depth > 0 && indent < list_indent[list_depth]) {
+                    print "</li></" list_type[list_depth] ">"
+                    list_type[list_depth] = ""
+                    list_indent[list_depth] = -1
+                    list_depth--
+                }
+                
+                # If we found matching indent with different type, close and reopen
+                if (list_depth > 0 && indent == list_indent[list_depth] && ltype != list_type[list_depth]) {
+                    print "</li></" list_type[list_depth] ">"
+                    list_type[list_depth] = ""
+                    list_indent[list_depth] = -1
+                    list_depth--
+                }
+                
+                # If at same level, just new item
+                if (list_depth > 0 && indent == list_indent[list_depth] && ltype == list_type[list_depth]) {
+                    print "</li>"
+                    print "<li>" process_inline_formatting(content)
+                }
+                # Otherwise start new list at this level
+                else {
+                    list_depth++
+                    list_type[list_depth] = ltype
+                    list_indent[list_depth] = indent
+                    print "<" ltype ">"
+                    print "<li>" process_inline_formatting(content)
+                }
+            }
+            # First list item
+            else {
+                if (buffer != "") {
+                    print "<p>" process_inline_formatting(buffer) "</p>"
+                    buffer = ""
+                }
+                list_depth = 1
+                list_type[1] = ltype
+                list_indent[1] = indent
+                print "<" ltype ">"
+                print "<li>" process_inline_formatting(content)
+            }
+            next
+        }
+        
+        # Handle indented continuation lines within list items
+        if (list_depth > 0 && line ~ /^[ \t]+[^ \t]/) {
+            # This is an indented line within a list - add as continuation content
+            gsub(/^[ \t]+/, "", line)
+            print process_inline_formatting(line)
+            next
+        }
+        
+        # Non-list line - close all lists
+        if (list_depth > 0 && line !~ /^[ \t]*$/) {
+            close_all_lists()
+        }
+
+        # Handle paragraphs (non-empty lines that are not special)
+        if (line ~ /^[^ \t]/ && line != "") {
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+            }
+            buffer = line
+            next
+        }
+
+        # Handle empty lines (end paragraphs)
+        if (line ~ /^[[:space:]]*$/) {
+            if (in_dl) {
+                print "</dl>"
+                in_dl = 0
+            }
+            if (buffer != "") {
+                print "<p>" process_inline_formatting(buffer) "</p>"
+                buffer = ""
+            }
+            next
+        }
+    }
+
+    END {
+        # Clean up any remaining open tags
+        if (in_code_block) print "</pre></div>"
+        if (in_table) print "</table>"
+        if (in_dl) print "</dl>"
+        
+        # Close any remaining lists
+        close_all_lists()
+
+        if (buffer != "") {
+            print "<p>" process_inline_formatting(buffer) "</p>"
+        }
+
+        # Print footnotes at the end if any exist
+        if (footnote_count > 0) {
+            print "<div class=\"footnotes\">"
+            print "<ol>"
+            for (i = 1; i <= footnote_count; i++) {
+                if (i in footnotes) {
+                    print "<li id=\"fn" i "\">" process_inline_formatting(footnotes[i]) " <a href=\"#fnref" i "\">↩</a></li>"
+                }
+            }
+            print "</ol>"
+            print "</div>"
+        }
+    }'
+}
+
+minify_html() {
+    awk '
+    BEGIN { css_buffer = "" }
+    /<style>/ { print; in_style=1; next }
+    /<\/style>/ {
+        if (css_buffer != "") {
+            print css_buffer
+            css_buffer = ""
+        }
+        print
+        in_style=0
+        next
+    }
+    in_style {
+        # Remove comments
+        gsub(/\/\*[^*]*\*+([^/*][^*]*\*+)*\//, "")
+        # Remove leading/trailing whitespace
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+        # Skip empty lines
+        if (length($0) == 0) next
+        # Remove whitespace around { } : ; ,
+        gsub(/[[:space:]]*\{[[:space:]]*/, "{")
+        gsub(/[[:space:]]*\}[[:space:]]*/, "}")
+        gsub(/[[:space:]]*:[[:space:]]*/, ":")
+        gsub(/[[:space:]]*;[[:space:]]*/, ";")
+        gsub(/[[:space:]]*,[[:space:]]*/, ",")
+        # Concatenate to buffer
+        css_buffer = css_buffer $0
+        next
+    }
+    { print }
+    '
+}
+
+# Check if source is a file or directory
+if [ -f "${KVH_SRC}" ]; then
+    # Single file mode
+    if [ ! "${KVH_SRC##*.}" = "md" ]; then
+        printf "Error: Input file must have .md extension\n" >&2
+        exit 1
+    fi
+    
+    # Create output directory if needed
+    DST_DIR="$(dirname "${KVH_DST}")"
+    [ -d "${DST_DIR}" ] || mkdir -p "${DST_DIR}"
+    
+    PAGE_ICON="$(getvalue "${KVH_SRC}" "icon")"
+    PAGE_NAME="$(getvalue "${KVH_SRC}" "title")"
+    PAGE_DESC="$(getvalue "${KVH_SRC}" "description")"
+    
     [ "${PAGE_ICON}" ] || PAGE_ICON="${KVH_PAGE_ICON}"
     [ "${PAGE_NAME}" ] || PAGE_NAME="${KVH_PAGE_NAME}"
     [ "${PAGE_DESC}" ] || PAGE_DESC="${KVH_PAGE_DESC}"
-
+    
+    # Escape special characters for sed
+    PAGE_ICON="$(printf '%s' "${PAGE_ICON}" | sed 's/[&\|]/\\&/g')"
+    PAGE_NAME="$(printf '%s' "${PAGE_NAME}" | sed 's/[&\|]/\\&/g')"
+    PAGE_DESC="$(printf '%s' "${PAGE_DESC}" | sed 's/[&\|]/\\&/g')"
+    
     printf "%s\n" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
-        "$(md2html "${FILE}")" \
+        "$(md2html "${KVH_SRC}")" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
-    | sed   -e '/^\s*$/d' \
-            -e "s/%PAGE_TITLE%/${PAGE_NAME}/g" \
-            -e "s/%PAGE_DESC%/${PAGE_DESC}/g" \
-            -e "s/%PAGE_ICON%/${PAGE_ICON}/g" \
-            -e "s/%KVH_VERSION%/${KVH_VERSION}/g" \
-    > "${KVH_DST}/${FILE_NAME%.md}.html"
+    | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
+            -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
+            -e "s|%PAGE_ICON%|${PAGE_ICON}|g" \
+            -e "s|%KVH_VERSION%|${KVH_VERSION}|g" \
+    | minify_html \
+    > "${KVH_DST}"
+    
+elif [ -d "${KVH_SRC}" ]; then
+    # Directory mode - generate html files from markdowns
+    find "${KVH_SRC}" -name "*.md" | while read FILE; do
+        FILE_NAME="${FILE##$KVH_SRC/}"
+        FILE_DIR="$(dirname "${FILE_NAME}")"
 
-    # Minify html files: (just removing characters within tags, not effecting JS,CSS)
-    #sed -i ':a;N;$!ba;s/>\s*</></g' "${KVH_DST}/${FILE_NAME%.md}.html"
+        [ -d "${KVH_DST}/${FILE_DIR}" ] \
+            || mkdir -p "${KVH_DST}/${FILE_DIR}"
 
-done
+        PAGE_ICON="$(getvalue "${FILE}" "icon")"
+        PAGE_NAME="$(getvalue "${FILE}" "title")"
+        PAGE_DESC="$(getvalue "${FILE}" "description")"
 
-# Copy the rest files/assets into destination.
-find "${KVH_SRC}" -type f | while read FILE; do
-    [ "${FILE#*.}" = "md" ] || continue;    # Skip *.md files.
-    FILE_NAME="${FILE##$KVH_SRC/}"
-    FILE_DIR="$(dirname "$FILE")"
-    [ -d "${FILE_DIR}" ] || mkdir -p "${KVH_DST}/${FILE_DIR}"
-    [ -e "${FILE}" ] || cp "${FILE}" "${KVH_DST}/${FILE_NAME}"
-done
+        [ "${PAGE_ICON}" ] || PAGE_ICON="${KVH_PAGE_ICON}"
+        [ "${PAGE_NAME}" ] || PAGE_NAME="${KVH_PAGE_NAME}"
+        [ "${PAGE_DESC}" ] || PAGE_DESC="${KVH_PAGE_DESC}"
+        
+        # Escape special characters for sed
+        PAGE_ICON="$(printf '%s' "${PAGE_ICON}" | sed 's/[&\|]/\\&/g')"
+        PAGE_NAME="$(printf '%s' "${PAGE_NAME}" | sed 's/[&\|]/\\&/g')"
+        PAGE_DESC="$(printf '%s' "${PAGE_DESC}" | sed 's/[&\|]/\\&/g')"
+
+        printf "%s\n" \
+            "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
+            "$(md2html "${FILE}")" \
+            "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
+        | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
+                -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
+                -e "s|%PAGE_ICON%|${PAGE_ICON}|g" \
+                -e "s|%KVH_VERSION%|${KVH_VERSION}|g" \
+        | minify_html \
+        > "${KVH_DST}/${FILE_NAME%.md}.html"
+
+        # Minify html files: (just removing characters within tags, not effecting JS,CSS)
+        #sed -i ':a;N;$!ba;s/>\s*</></g' "${KVH_DST}/${FILE_NAME%.md}.html"
+
+    done
+
+    # Copy non-markdown files/assets to destination
+    find "${KVH_SRC}" -type f ! -name "*.md" | while read FILE; do
+        FILE_NAME="${FILE##$KVH_SRC/}"
+        FILE_DIR="$(dirname "${FILE_NAME}")"
+        [ -d "${KVH_DST}/${FILE_DIR}" ] || mkdir -p "${KVH_DST}/${FILE_DIR}"
+        cp "${FILE}" "${KVH_DST}/${FILE_NAME}"
+    done
+else
+    printf "Error: Source '%s' does not exist\n" "${KVH_SRC}" >&2
+    exit 1
+fi
 
 exit $?
 
@@ -94,45 +850,259 @@ __HTML TEMPLATE__
         overflow-y: scroll;
     }
     body {
-	background-color: #fff;
-	color: #000;
+        background-color: #fafafa;
+        color: #333;
         margin: 0 auto;
         padding: 1ex;
-	max-width: 80ex;
-	font-family: sans-serif;
+        max-width: 80ex;
+        font-family: sans-serif;
+        line-height: 1.6;
     }
+    
     /* Center Images */
     img {
         display: block;
         margin: 0 auto;
+        max-width: 100%;
+        height: auto;
     }
-    pre {
+    
+    /* Code blocks */
+    .code-block {
+        background-color: #f5f5f5;
+        border: 1px solid #d0d0d0;
+        border-radius: 4px;
+        margin: 1em 0;
+        overflow: hidden;
+    }
+    .code-block pre {
         margin: 0;
+        padding: 1em;
+        overflow-x: auto;
     }
-    code {
-    	background-color: #eee;
-    	border: 3px solid #aaa;
-    	display: block;
-    	font-family: monospace;
-    	overflow-x: auto;
-    	padding: 5px;
-    	word-wrap: normal;
-	white-space: pre-wrap;
+    .code-block code,
+    pre {
+        background-color: transparent;
+        border: none;
+        display: block;
+        font-family: monospace;
+        font-size: 0.9em;
+        line-height: 1.4;
+        overflow-x: auto;
+        padding: 0;
+        white-space: pre;
     }
-    h1,h2,h3 {
-        line-height:1.2
+    
+    /* Inline code */
+    p code, li code, td code, blockquote code {
+        display: inline;
+        padding: 2px 4px;
+        border: 1px solid #d0d0d0;
+        background-color: #e8e8e8;
+        border-radius: 3px;
     }
-    @media print{
-        body{
-            max-width:none
+    
+    /* Headings */
+    h1, h2, h3, h4, h5, h6, h7 {
+        line-height: 1.2;
+        margin-top: 1.5em;
+        margin-bottom: 0.5em;
+    }
+    .heading-with-anchor {
+        position: relative;
+    }
+    .heading-anchor {
+        position: absolute;
+        left: -1.5em;
+        top: 50%;
+        transform: translateY(-50%);
+        text-decoration: none;
+        opacity: 0;
+        padding-right: 0.5em;
+        transition: opacity 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+    }
+    .heading-anchor .octicon {
+        fill: #ccc;
+        display: block;
+    }
+    .heading-with-anchor:hover .heading-anchor {
+        opacity: 1;
+    }
+    .heading-anchor:hover .octicon {
+        fill: #0066cc;
+    }
+    
+    /* Tables */
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1em 0;
+    }
+    table td, table th {
+        border: 1px solid #ccc;
+        padding: 8px 12px;
+        text-align: left;
+    }
+    table tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    
+    /* Blockquotes */
+    blockquote {
+        border-left: 4px solid #d0d0d0;
+        margin: 1em 0;
+        padding-left: 1em;
+        color: #555;
+    }
+    
+    /* Horizontal rules */
+    hr {
+        border: none;
+        border-top: 2px solid #ccc;
+        margin: 2em 0;
+    }
+    
+    /* Task lists */
+    ul.task-list {
+        list-style: none;
+        padding-left: 0;
+    }
+    ul.task-list li.task-list-item {
+        padding-left: 1.5em;
+    }
+    ul.task-list input[type="checkbox"] {
+        margin-left: -1.5em;
+        margin-right: 0.5em;
+    }
+    
+    /* Highlight */
+    mark {
+        background-color: #ffff00;
+        padding: 2px 0;
+    }
+    
+    /* Strikethrough */
+    del {
+        text-decoration: line-through;
+        opacity: 0.7;
+    }
+    
+    /* Subscript and Superscript */
+    sub, sup {
+        font-size: 0.75em;
+        line-height: 0;
+        position: relative;
+        vertical-align: baseline;
+    }
+    sup {
+        top: -0.5em;
+    }
+    sub {
+        bottom: -0.25em;
+    }
+    
+    /* Footnotes */
+    .footnotes {
+        margin-top: 2em;
+        padding-top: 1em;
+        border-top: 1px solid #ccc;
+        font-size: 0.9em;
+    }
+    .footnotes ol {
+        padding-left: 1.5em;
+    }
+    
+    /* Definition lists */
+    dl {
+        margin: 1em 0;
+    }
+    dt {
+        font-weight: bold;
+        margin-top: 0.5em;
+    }
+    dd {
+        margin-left: 2em;
+        margin-bottom: 0.5em;
+    }
+    
+    /* Links */
+    a {
+        color: #0066cc;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+        color: #0052a3;
+    }
+    a:visited {
+        color: #6b46c1;
+    }
+    
+    /* Nested lists */
+    ul ul, ol ol, ul ol, ol ul {
+        margin: 0.5em 0;
+    }
+    
+    @media print {
+        body {
+            max-width: none;
         }
     }
-    @media (prefers-color-scheme: dark){
-        body {color:#fff;background-color:#000}
-	code {border-color:#222;background-color:#111;}
-        a:link {color:#cdf}
-        a:hover, a:visited:hover {color:#def}
-        a:visited {color:#dcf}
+    
+    @media (prefers-color-scheme: dark) {
+        body {
+            color: #e0e0e0;
+            background-color: #1a1a1a;
+        }
+        .code-block {
+            background-color: #0d0d0d;
+            border-color: #333;
+        }
+        .code-block pre {
+            color: #e0e0e0;
+        }
+        p code, li code, td code, blockquote code {
+            background-color: #0d0d0d;
+            border-color: #333;
+            color: #e0e0e0;
+        }
+        table td, table th {
+            border-color: #444;
+        }
+        table tr:nth-child(even) {
+            background-color: #111;
+        }
+        blockquote {
+            border-left-color: #444;
+            color: #aaa;
+        }
+        hr {
+            border-top-color: #444;
+        }
+        mark {
+            background-color: #666600;
+            color: #fff;
+        }
+        a:link {
+            color: #cdf;
+        }
+        a:hover, a:visited:hover {
+            color: #def;
+        }
+        a:visited {
+            color: #dcf;
+        }
+        .footnotes {
+            border-top-color: #444;
+        }
+        .heading-anchor .octicon {
+            fill: #555;
+        }
+        .heading-anchor:hover .octicon {
+            fill: #cdf;
+        }
     }
 </style>
 </head>
@@ -141,7 +1111,7 @@ __HTML TEMPLATE__
 %PAGE_DATA%
 </div>
 <footer style="text-align: right;">
-<p><small>Powered by <a href="https://github.com/MahdiMirzade/Kaveh">Kaveh</a></small></p>
+<p><small>Generated by <a href="https://github.com/MahdiMirzadeh/Kaveh">Kaveh</a></small></p>
 </footer>
 </body>
 </html>
