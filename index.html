@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="Kaveh v0.2" />
+<meta name="description" content="A simple, powerful static site generator built with pure POSIX shell that converts Markdown to HTML">
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAFxAAABcQG7iuH0AAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAhVJREFUOI2FkU1IlHEQxn/z33fbJSIIDx0ioUChj0Mm7R7KNRc7SAUdyiDCDoqXCC9BeKpTHYRIyFMRBBWEUFCgh0rIbFM3lKAsSKJLEn2Z7Yfr7vvOdAjD6FXnNPA8/GaeGVilekZS7ReG9x9ZTnerAVSkLUC6ukaaq8N0b2K6tm12IRbJ+7FM3pfGQhCd7ExksgCXM+lNvgXbRfgW8e080P4fwIxzgnb7lAtYLA52v29039uyCmrBekzuOvEuQnAtdAPBvqR3vHkAcHsyOUggxwz6/6STaoQ4sfhP8oXQiB7A0NTOR3OVNRR9dSbulcGsAGBxjG4tFtLAdChgd837ppWO2PO88ThwCywapq/6BcOGxGyX4rJhuiw298YSVcWoNhUqUamok4q6M4G5kgI5dRRVbuR811wwV8j57lk+gLzKd28RoGs0iUqfc1wydQEic2f3Pj20dFrnk/S4mdzE6WsJJCniGv5GOFr3csBBB0ariwSjK2R6B2DiNqsj9c8NTtRnHwaqp0wjvcsCxFpN3ZaqwrqW7MGBzxLmuTqWqPI13m++dpSABeLMAfMlqn9Bx50Dj08uer0wwOnE+I/eTMMLdZEhD4ZLfjAvJntU3AxwZak3EgbY0JLcKM59UnN1anZ9Qdxw2WRrGRlcUD5sO1z/dap/ypbdwMOrr5hLgUyISEoCQYwZjNoIria3tvgRmAX4DdT85ywDHCURAAAAAElFTkSuQmCC">
+<title>Kaveh - Markdown Website Generator</title>
+<style>
+html{overflow-y:scroll;}body{background-color:#fafafa;color:#333;margin:0 auto;padding:1ex;max-width:80ex;font-family:sans-serif;line-height:1.6;}img{display:block;margin:0 auto;max-width:100%;height:auto;}.code-block{background-color:#f5f5f5;border:1px solid #d0d0d0;border-radius:4px;margin:1em 0;overflow:hidden;}.code-block pre{margin:0;padding:1em;overflow-x:auto;}.code-block code,pre{background-color:transparent;border:none;display:block;font-family:monospace;font-size:0.9em;line-height:1.4;overflow-x:auto;padding:0;white-space:pre;}p code,li code,td code,blockquote code{display:inline;padding:2px 4px;border:1px solid #d0d0d0;background-color:#e8e8e8;border-radius:3px;}h1,h2,h3,h4,h5,h6,h7{line-height:1.2;margin-top:1.5em;margin-bottom:0.5em;}.heading-with-anchor{position:relative;}.heading-anchor{position:absolute;left:-1.5em;top:50%;transform:translateY(-50%);text-decoration:none;opacity:0;padding-right:0.5em;transition:opacity 0.2s ease;display:inline-flex;align-items:center;}.heading-anchor .octicon{fill:#ccc;display:block;}.heading-with-anchor:hover .heading-anchor{opacity:1;}.heading-anchor:hover .octicon{fill:#0066cc;}table{border-collapse:collapse;width:100%;margin:1em 0;}table td,table th{border:1px solid #ccc;padding:8px 12px;text-align:left;}table tr:nth-child(even){background-color:#f9f9f9;}blockquote{border-left:4px solid #d0d0d0;margin:1em 0;padding-left:1em;color:#555;}hr{border:none;border-top:2px solid #ccc;margin:2em 0;}ul.task-list{list-style:none;padding-left:0;}ul.task-list li.task-list-item{padding-left:1.5em;}ul.task-list input[type="checkbox"]{margin-left:-1.5em;margin-right:0.5em;}mark{background-color:#ffff00;padding:2px 0;}del{text-decoration:line-through;opacity:0.7;}sub,sup{font-size:0.75em;line-height:0;position:relative;vertical-align:baseline;}sup{top:-0.5em;}sub{bottom:-0.25em;}.footnotes{margin-top:2em;padding-top:1em;border-top:1px solid #ccc;font-size:0.9em;}.footnotes ol{padding-left:1.5em;}dl{margin:1em 0;}dt{font-weight:bold;margin-top:0.5em;}dd{margin-left:2em;margin-bottom:0.5em;}a{color:#0066cc;text-decoration:none;}a:hover{text-decoration:underline;color:#0052a3;}a:visited{color:#6b46c1;}ul ul,ol ol,ul ol,ol ul{margin:0.5em 0;}@media print{body{max-width:none;}}@media (prefers-color-scheme:dark){body{color:#e0e0e0;background-color:#1a1a1a;}.code-block{background-color:#0d0d0d;border-color:#333;}.code-block pre{color:#e0e0e0;}p code,li code,td code,blockquote code{background-color:#0d0d0d;border-color:#333;color:#e0e0e0;}table td,table th{border-color:#444;}table tr:nth-child(even){background-color:#111;}blockquote{border-left-color:#444;color:#aaa;}hr{border-top-color:#444;}mark{background-color:#666600;color:#fff;}a:link{color:#cdf;}a:hover,a:visited:hover{color:#def;}a:visited{color:#dcf;}.footnotes{border-top-color:#444;}.heading-anchor .octicon{fill:#555;}.heading-anchor:hover .octicon{fill:#cdf;}}
+</style>
+</head>
+<body>
+<div>
+<h1 id="kaveh-markdown-website-generator" class="heading-with-anchor">Kaveh - Markdown Website Generator<a href="#kaveh-markdown-website-generator" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h1>
+<p>Kaveh is a <strong>lightweight</strong> and <em>powerful</em> static site generator written entirely in pure POSIX shell. It transforms your Markdown files into beautiful, responsive HTML pages without any external dependencies. This page showcases all the markdown features Kaveh supports, demonstrating how you can create rich content with simple, readable syntax.
+</p>
+<h2 id="rich-text-formatting" class="heading-with-anchor">Rich Text Formatting<a href="#rich-text-formatting" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Kaveh supports comprehensive text formatting options to make your content expressive and readable.
+</p>
+<h3 id="bold-text" class="heading-with-anchor">Bold Text<a href="#bold-text" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Emphasize important content with <strong>bold text</strong> using <code>**text**</code> or <code>__text__</code>.
+</p>
+<ul>
+<li><strong>This is bold with asterisks</strong>
+</li>
+<li><strong>This is bold with underscores</strong>
+</li></ul>
+<h3 id="italic-text" class="heading-with-anchor">Italic Text<a href="#italic-text" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Add subtle emphasis with <em>italic text</em> using <code>*text*</code> or <code>_text_</code>.
+</p>
+<ul>
+<li><em>This is italic with asterisks</em>
+</li>
+<li><em>This is italic with underscores</em>
+</li></ul>
+<h3 id="combined-formatting" class="heading-with-anchor">Combined Formatting<a href="#combined-formatting" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>You can combine formatting styles: <em><strong>bold and italic</strong></em> using <code>***text***</code> or <code>___text___</code>.</p>
+<h3 id="strikethrough" class="heading-with-anchor">Strikethrough<a href="#strikethrough" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Mark text as removed or outdated with <del>strikethrough</del> using <code>~~text~~</code>.
+</p>
+<h3 id="inline-code" class="heading-with-anchor">Inline Code<a href="#inline-code" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Highlight code snippets inline with <code>backticks</code> like this: <code>const x = 42;</code></p>
+<h3 id="highlighted-text" class="heading-with-anchor">Highlighted Text<a href="#highlighted-text" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Draw attention to important passages with <mark>highlighted text</mark> using <code>==text==</code>.
+</p>
+<h3 id="scientific-notation" class="heading-with-anchor">Scientific Notation<a href="#scientific-notation" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Kaveh supports subscript and superscript for scientific and mathematical expressions:</p>
+<ul>
+<li>Chemical formulas: H<sub>2</sub>O using <code>H~2~O</code>
+</li>
+<li>Mathematical equations: E=mc<sup>2</sup> using <code>E=mc^2^</code>
+</li></ul>
+<h2 id="links-and-media" class="heading-with-anchor">Links and Media<a href="#links-and-media" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Create hyperlinks and embed images effortlessly in your Kaveh-powered site.
+</p>
+<h3 id="hyperlinks" class="heading-with-anchor">Hyperlinks<a href="#hyperlinks" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Link to external sites, pages, or email addresses with the syntax <code>[text](url)</code>:</p>
+<ul>
+<li>External link: <a href="https://github.com">Visit GitHub</a>
+</li>
+<li>Email link: <a href="mailto:example@example.com">Contact us</a>
+</li>
+<li>Internal link: <a href="#headings">Jump to headings</a>
+</li></ul>
+<h3 id="images" class="heading-with-anchor">Images<a href="#images" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Embed images using <code>![alt text](image-url)</code> syntax:</p>
+<p><img alt="Sample Image" src="/iran.webp" />
+</p>
+<h3 id="clickable-images" class="heading-with-anchor">Clickable Images<a href="#clickable-images" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Combine links and images to create clickable graphics: <code>[![alt](image-url)](link-url)</code></p>
+<p><a href="https://example.com"><img alt="Clickable Image" src="/iran.webp" /></a></p>
+<h2 id="organizing-content-with-lists" class="heading-with-anchor">Organizing Content with Lists<a href="#organizing-content-with-lists" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Kaveh provides flexible list formatting to structure your content clearly.
+</p>
+<h3 id="bullet-lists" class="heading-with-anchor">Bullet Lists<a href="#bullet-lists" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Create unordered lists with <code>-</code>, <code>*</code>, or <code>+</code>:</p>
+<ul>
+<li>Documentation pages
+</li>
+<li>Blog posts
+<ul>
+<li>Technical tutorials
+</li>
+<li>Release notes
+</li></ul>
+</li>
+<li>Project notes
+</li></ul>
+<h3 id="numbered-lists" class="heading-with-anchor">Numbered Lists<a href="#numbered-lists" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Ordered lists use numbers followed by periods:</p>
+<ol>
+<li>Install Kaveh
+</li>
+<li>Create markdown files
+</li>
+<li>Generate your site
+<ol>
+<li>Run the converter
+</li>
+<li>Deploy the output
+</li></ol>
+</li></ol>
+<h3 id="task-lists" class="heading-with-anchor">Task Lists<a href="#task-lists" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Track progress with interactive checkboxes using <code>- [ ]</code> and <code>- [x]</code>:</p>
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled checked /> Set up Kaveh
+</li>
+<li class="task-list-item"><input type="checkbox" disabled checked /> Write content
+</li>
+<li class="task-list-item"><input type="checkbox" disabled  /> Deploy website
+<ul class="task-list">
+<li class="task-list-item"><input type="checkbox" disabled checked /> Configure server
+</li>
+<li class="task-list-item"><input type="checkbox" disabled  /> Set up domain
+</li></ul>
+</li></ul>
+<h3 id="flexible-list-mixing" class="heading-with-anchor">Flexible List Mixing<a href="#flexible-list-mixing" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Combine different list styles as needed:</p>
+<ol>
+<li>Plan your website structure
+</li>
+<li>Write content in Markdown
+<ul>
+<li>Create pages
+</li>
+<li>Add images and links
+</li></ul>
+</li>
+<li>Generate with Kaveh
+</li></ol>
+<h2 id="code-highlighting" class="heading-with-anchor">Code Highlighting<a href="#code-highlighting" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Kaveh excels at displaying code with fenced code blocks and syntax highlighting.
+</p>
+<h3 id="multi-language-support" class="heading-with-anchor">Multi-Language Support<a href="#multi-language-support" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Use triple backticks with language identifiers:</p>
+<div class="code-block" data-lang="bash"><pre>
+#!/bin/sh
+echo &quot;Hello, World!&quot;
+</pre></div>
+<div class="code-block" data-lang="python"><pre>
+def hello():
+    print(&quot;Hello from Python!&quot;)
+</pre></div>
+<div class="code-block" data-lang="javascript"><pre>
+const greeting = () =&gt; {
+    console.log('Hello from JavaScript!');
+};
+</pre></div>
+<div class="code-block" data-lang="c"><pre>
+#include &lt;stdio.h&gt;
+
+int main() {
+    printf(&quot;Hello from C!\n&quot;);
+    return 0;
+}
+</pre></div>
+<h2 id="blockquotes-and-callouts" class="heading-with-anchor">Blockquotes and Callouts<a href="#blockquotes-and-callouts" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Highlight important information or quotations with blockquotes using <code>&gt;</code>:</p>
+<blockquote>Kaveh generates clean, semantic HTML from your Markdown files.</blockquote>
+<blockquote>No JavaScript frameworks or build tools required.</blockquote>
+<blockquote><strong>Tip</strong>: Blockquotes are perfect for tips, warnings, or highlighting key points.</blockquote>
+<blockquote>Blockquotes support <strong>formatting</strong>, <em>emphasis</em>, and <code>inline code</code>.</blockquote>
+<h2 id="data-tables" class="heading-with-anchor">Data Tables<a href="#data-tables" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Present structured data beautifully with Markdown tables using pipes <code>|</code> and hyphens <code>-</code>:</p>
+<table>
+<tr><td>Name</td><td>Age</td><td>City</td></tr>
+<tr><td>John</td><td>25</td><td>NYC</td></tr>
+<tr><td>Jane</td><td>30</td><td>LA</td></tr>
+<tr><td>Bob</td><td>35</td><td>Chicago</td></tr>
+</table>
+<h3 id="formatted-tables" class="heading-with-anchor">Formatted Tables<a href="#formatted-tables" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Tables fully support inline formatting to make data more readable:</p>
+<table>
+<tr><td>Feature</td><td>Status</td><td>Syntax</td></tr>
+<tr><td><strong>Bold</strong></td><td>✓</td><td><code>**text**</code></td></tr>
+<tr><td><em>Italic</em></td><td>✓</td><td><code>*text*</code></td></tr>
+<tr><td><code>Code</code></td><td>✓</td><td><code><code> </code>code</code> ``</td></tr>
+<tr><td><del>Strike</del></td><td>✓</td><td><code>~~text~~</code></td></tr>
+</table>
+<h2 id="visual-separators" class="heading-with-anchor">Visual Separators<a href="#visual-separators" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Divide content sections with horizontal rules using three or more hyphens, asterisks, or underscores:</p>
+<hr />
+<p>Content above the separator.
+</p>
+<hr />
+<p>Content between separators.
+</p>
+<hr />
+<h2 id="headings" class="heading-with-anchor">Headings with Auto-Generated Anchors<a href="#headings" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Kaveh automatically generates anchor links for all headings (H1 through H6), making it easy to create a table of contents or link to specific sections:</p>
+<h1 id="heading-1" class="heading-with-anchor">Heading 1<a href="#heading-1" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h1>
+<h2 id="heading-2" class="heading-with-anchor">Heading 2<a href="#heading-2" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<h3 id="heading-3" class="heading-with-anchor">Heading 3<a href="#heading-3" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<h4 id="heading-4" class="heading-with-anchor">Heading 4<a href="#heading-4" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h4>
+<h5 id="heading-5" class="heading-with-anchor">Heading 5<a href="#heading-5" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h5>
+<h6 id="heading-6" class="heading-with-anchor">Heading 6<a href="#heading-6" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h6>
+<h3 id="custom-heading-ids" class="heading-with-anchor">Custom Heading IDs<a href="#custom-heading-ids" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>You can add custom IDs to headings:</p>
+<h2 id="my-custom-id" class="heading-with-anchor">Custom Heading Example<a href="#my-custom-id" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>You can also provide custom IDs using the syntax <code>{#custom-id}</code>. <a href="#headings">Click here to jump back</a>
+</p>
+<h2 id="advanced-features" class="heading-with-anchor">Advanced Features<a href="#advanced-features" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<h3 id="footnotes-and-references" class="heading-with-anchor">Footnotes and References<a href="#footnotes-and-references" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Add scholarly footnotes<sup><a href="#fn1" id="fnref1">[1]</a></sup> to provide additional context. They automatically appear at the bottom<sup><a href="#fn2" id="fnref2">[2]</a></sup> of the page with return links.
+</p>
+<p>Example syntax:</p>
+<div class="code-block"><pre>
+Add footnotes[^1] to your text.
+
+[^1]: This is a footnote definition.
+</pre></div>
+<h3 id="definition-lists" class="heading-with-anchor">Definition Lists<a href="#definition-lists" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>Create glossaries or define terms with definition lists:</p>
+<dl>
+<dt>Static Site Generator</dt>
+<dd>A tool that generates a complete static website from source files</dd>
+</dl>
+<dl>
+<dt>Markdown</dt>
+<dd>A lightweight markup language with plain text formatting syntax</dd>
+</dl>
+<h3 id="manual-line-breaks" class="heading-with-anchor">Manual Line Breaks<a href="#manual-line-breaks" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<p>End any line with two or more spaces to insert a line break.  
+The text continues on a new line without starting a new paragraph.</p>
+<h2 id="html-passthrough" class="heading-with-anchor">HTML Passthrough<a href="#html-passthrough" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>When you need more control, Kaveh passes raw HTML directly to the output:</p>
+<p><div style="padding: 10px; border: 2px solid #0066cc; border-radius: 5px;"></p>
+<p>This <strong>custom HTML</strong> is rendered exactly as written.
+</div></p>
+<p>Example:</p>
+<div class="code-block" data-lang="html"><pre>
+&lt;div style=&quot;padding: 10px; border: 2px solid #0066cc;&quot;&gt;
+Custom HTML content here.
+&lt;/div&gt;
+</pre></div>
+<h2 id="escaping-special-characters" class="heading-with-anchor">Escaping Special Characters<a href="#escaping-special-characters" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Use backslashes to display Markdown syntax literally:</p>
+<ul>
+<li>* This won't be italic *
+</li>
+<li>_ This won't be italic _
+</li>
+<li>` This won't be code `
+</li>
+<li>[ This won't be a link ]
+</li>
+<li># This won't be a heading
+</li></ul>
+<h2 id="why-choose-kaveh" class="heading-with-anchor">Why Choose Kaveh?<a href="#why-choose-kaveh" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h2>
+<p>Kaveh brings simplicity and power together for static site generation:</p>
+<ul>
+<li>✓ <strong>Zero Dependencies</strong> - Pure POSIX shell script
+</li>
+<li>✓ <strong>Fast</strong> - Instant compilation, no build tools
+</li>
+<li>✓ <strong>Complete</strong> - Full Markdown support with extensions
+</li>
+<li>✓ <strong>Semantic HTML</strong> - Clean, accessible output
+</li>
+<li>✓ <strong>Dark Mode</strong> - Built-in responsive dark theme
+</li>
+<li>✓ <strong>Portable</strong> - Runs on any POSIX-compliant system
+</li></ul>
+<h3 id="supported-features" class="heading-with-anchor">Supported Features<a href="#supported-features" class="heading-anchor" aria-label="Permalink"><svg class="octicon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"></path></svg></a></h3>
+<ul>
+<li>Rich text formatting (bold, italic, strikethrough, highlight)
+</li>
+<li>Headings (H1-H6) with automatic anchor generation
+</li>
+<li>Links, images, and clickable images
+</li>
+<li>Lists (bullet, numbered, task lists, nested)
+</li>
+<li>Syntax-highlighted code blocks
+</li>
+<li>Tables with formatting support
+</li>
+<li>Blockquotes and callouts
+</li>
+<li>Footnotes with auto-linking
+</li>
+<li>Definition lists
+</li>
+<li>Scientific notation (subscript/superscript)
+</li>
+<li>Raw HTML passthrough
+</li>
+<li>Character escaping
+</li>
+<li>Horizontal rules
+</li></ul>
+<div class="footnotes">
+<ol>
+<li id="fn1">Footnotes are perfect for citations, additional explanations, or references. <a href="#fnref1">↩</a></li>
+<li id="fn2">Kaveh automatically numbers and links footnotes for you. <a href="#fnref2">↩</a></li>
+</ol>
+</div>
+</div>
+<footer style="text-align: right;">
+<p><small>Generated by <a href="https://github.com/MahdiMirzadeh/Kaveh">Kaveh</a></small></p>
+</footer>
+</body>
+</html>
