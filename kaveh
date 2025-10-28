@@ -55,6 +55,13 @@ else
     fi
 fi
 
+# Determine source root directory for header/footer resolution
+if [ -f "${KVH_SRC}" ]; then
+    KVH_SRC_ROOT=$(cd "$(dirname "${KVH_SRC}")" 2>/dev/null && pwd)
+else
+    KVH_SRC_ROOT="${KVH_SRC}"
+fi
+
 getvalue() {
     awk -v key="$2" '
         /<!---/,/--->/{
@@ -1518,6 +1525,81 @@ minify_html() {
     '
 }
 
+# Hierarchical header/footer configuration
+KVH_HDR_FILE="_header.md"
+KVH_FTR_FILE="_footer.md"
+KVH_HF_MAP=""
+KVH_HF_CACHE_DIR=""
+
+build_header_footer_map() {
+    # Build map: dir -> (header_path, footer_path) using hierarchical resolution
+    KVH_HF_MAP="$(mktemp)"
+    KVH_HF_CACHE_DIR="$(mktemp -d)"
+    local root="${KVH_SRC_ROOT}"
+    [ -d "$root" ] || return
+    
+    # Process directories from shallow to deep so parents are computed before children
+    find "$root" -type d | awk '{print length, $0}' | sort -n | cut -d' ' -f2- | while read -r dir; do
+        local parent="$(dirname "$dir")"
+        local header=""
+        local footer=""
+        
+        # Check for _header.md in current dir
+        if [ -f "$dir/$KVH_HDR_FILE" ]; then
+            header="$dir/$KVH_HDR_FILE"
+        else
+            # Inherit from parent
+            header="$(awk -F '\t' -v p="$parent" '($1==p){print $2; exit}' "$KVH_HF_MAP")"
+        fi
+        
+        # Check for _footer.md in current dir
+        if [ -f "$dir/$KVH_FTR_FILE" ]; then
+            footer="$dir/$KVH_FTR_FILE"
+        else
+            # Inherit from parent
+            footer="$(awk -F '\t' -v p="$parent" '($1==p){print $3; exit}' "$KVH_HF_MAP")"
+        fi
+        
+        printf "%s\t%s\t%s\n" "$dir" "$header" "$footer" >> "$KVH_HF_MAP"
+    done
+}
+
+kvh_hf_cached_html() {
+    # $1 = markdown file path; caches full HTML by path using cksum key
+    local p="$1"
+    [ -f "$p" ] || return
+    local key cache_file
+    key=$(printf '%s' "$p" | cksum | awk '{print $1"_"$2}')
+    cache_file="${KVH_HF_CACHE_DIR}/${key}.html"
+    if [ -f "$cache_file" ]; then
+        cat "$cache_file"
+        return
+    fi
+    md2html "$p" > "$cache_file"
+    cat "$cache_file"
+}
+
+get_header_html() {
+    # $1 = absolute directory of the file being processed
+    local hdr_path
+    hdr_path="$(awk -F '\t' -v d="$1" '($1==d){print $2; exit}' "$KVH_HF_MAP")"
+    [ -n "$hdr_path" ] && [ -f "$hdr_path" ] || return
+    kvh_hf_cached_html "$hdr_path"
+}
+
+get_footer_html() {
+    # $1 = absolute directory of the file being processed
+    local ftr_path
+    ftr_path="$(awk -F '\t' -v d="$1" '($1==d){print $3; exit}' "$KVH_HF_MAP")"
+    [ -n "$ftr_path" ] && [ -f "$ftr_path" ] || return
+    kvh_hf_cached_html "$ftr_path"
+}
+
+cleanup_hf_map() {
+    [ -n "$KVH_HF_MAP" ] && [ -f "$KVH_HF_MAP" ] && rm -f "$KVH_HF_MAP"
+    [ -n "$KVH_HF_CACHE_DIR" ] && [ -d "$KVH_HF_CACHE_DIR" ] && rm -rf "$KVH_HF_CACHE_DIR"
+}
+
 # Check if source is a file or directory
 if [ -f "${KVH_SRC}" ]; then
     # Single file mode
@@ -1548,9 +1630,21 @@ if [ -f "${KVH_SRC}" ]; then
     OUTPUT_BASENAME="$(basename "${KVH_DST}")"
     process_blog_lists "${KVH_SRC}" "${OUTPUT_BASENAME}" > "${PROCESSED_FILE}"
     
+    # Build header/footer map and resolve for this file
+    build_header_footer_map
+    FILE_DIR="$(cd "$(dirname "${KVH_SRC}")" 2>/dev/null && pwd)"
+    HDR_HTML="$(get_header_html "$FILE_DIR")"
+    FTR_HTML="$(get_footer_html "$FILE_DIR")"
+    
+    # Wrap header/footer in semantic tags if present
+    [ -n "$HDR_HTML" ] && HDR_HTML="<header>${HDR_HTML}</header>"
+    [ -n "$FTR_HTML" ] && FTR_HTML="<footer>${FTR_HTML}</footer>"
+    
     printf "%s\n" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
+        "${HDR_HTML}" \
         "$(md2html "${PROCESSED_FILE}")" \
+        "${FTR_HTML}" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
     | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
             -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
@@ -1560,6 +1654,7 @@ if [ -f "${KVH_SRC}" ]; then
     > "${KVH_DST}"
     
     rm -f "${PROCESSED_FILE}"
+    cleanup_hf_map
     
     # Generate additional paginated pages if needed
     DST_DIR="$(dirname "${KVH_DST}")"
@@ -1568,7 +1663,9 @@ if [ -f "${KVH_SRC}" ]; then
     
 elif [ -d "${KVH_SRC}" ]; then
     # Directory mode - generate html files from markdowns
-    find "${KVH_SRC}" -name "*.md" | while read FILE; do
+    build_header_footer_map
+    
+    find "${KVH_SRC}" -type f -name "*.md" ! -name "${KVH_HDR_FILE}" ! -name "${KVH_FTR_FILE}" | while read -r FILE; do
         FILE_NAME="${FILE##$KVH_SRC/}"
         FILE_DIR="$(dirname "${FILE_NAME}")"
 
@@ -1596,10 +1693,25 @@ elif [ -d "${KVH_SRC}" ]; then
         # Process blog lists first, then convert to HTML
         PROCESSED_FILE="$(mktemp)"
         process_blog_lists "${FILE}" "${OUTPUT_BASENAME}" > "${PROCESSED_FILE}"
+        
+        # Resolve header/footer for this file's directory
+        if [ "${FILE_DIR}" = "." ]; then
+            FILE_DIR_ABS="${KVH_SRC_ROOT}"
+        else
+            FILE_DIR_ABS="${KVH_SRC_ROOT}/${FILE_DIR}"
+        fi
+        HDR_HTML="$(get_header_html "$FILE_DIR_ABS")"
+        FTR_HTML="$(get_footer_html "$FILE_DIR_ABS")"
+        
+        # Wrap header/footer in semantic tags if present
+        [ -n "$HDR_HTML" ] && HDR_HTML="<header>${HDR_HTML}</header>"
+        [ -n "$FTR_HTML" ] && FTR_HTML="<footer>${FTR_HTML}</footer>"
 
         printf "%s\n" \
             "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
+            "${HDR_HTML}" \
             "$(md2html "${PROCESSED_FILE}")" \
+            "${FTR_HTML}" \
             "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
         | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
                 -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
@@ -1619,6 +1731,8 @@ elif [ -d "${KVH_SRC}" ]; then
         #sed -i ':a;N;$!ba;s/>\s*</></g' "${KVH_DST}/${FILE_NAME%.md}.html"
 
     done
+    
+    cleanup_hf_map
 
     # Copy directories (including empty ones) to destination
     find "${KVH_SRC}" -type d | while read -r DIR; do
@@ -1630,7 +1744,7 @@ elif [ -d "${KVH_SRC}" ]; then
         [ -n "$DIR_NAME" ] && mkdir -p "${KVH_DST}/${DIR_NAME}"
     done
     
-    # Copy non-markdown files/assets to destination
+    # Copy non-markdown files/assets to destination (excluding header/footer markdown files)
     find "${KVH_SRC}" -type f ! -name "*.md" | while read -r FILE; do
         FILE_NAME="${FILE#$KVH_SRC}"
         FILE_NAME="${FILE_NAME#/}"
@@ -2091,8 +2205,5 @@ __HTML TEMPLATE__
 <div>
 %PAGE_DATA%
 </div>
-<footer style="text-align: right;">
-<p><small>Generated by <a href="https://github.com/MahdiMirzadeh/Kaveh">Kaveh</a></small></p>
-</footer>
 </body>
 </html>
