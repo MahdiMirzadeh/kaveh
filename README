@@ -15,6 +15,7 @@ Features
 - Built-in responsive dark mode
 - Minified CSS output
 - SEO-friendly semantic HTML
+- RSS feed generation from .rss files
 
 Requirements
 ------------
@@ -268,6 +269,114 @@ Examples:
     per_page: 5
     --->
     Lists GPG keys with file information
+
+RSS Feeds
+---------
+Automatically generate RSS feeds from markdown files using `.rss` files with a YAML-like syntax.
+
+Workflow:
+- Create a `.rss` file in your source directory (e.g., `.src/feed.rss`)
+- During build, it's processed and outputs as `.xml` (e.g., `feed.xml`)
+- The `.rss` file itself is not copied to output
+
+Syntax:
+
+    <!---rss
+    pattern: blog/*.md
+    feed_title: My Blog
+    feed_description: Latest blog posts
+    feed_url: https://example.com
+    limit: 20
+    --->
+
+Parameters:
+
+  pattern              Shell-style glob pattern to match files (required)
+  feed_title           Title of the RSS feed (optional, default: page name)
+  feed_description     Description of the feed (optional, default: page description)
+  feed_url             Base URL for links in the feed (optional, default: https://example.com)
+  limit                Maximum number of items in feed (optional, default: 20)
+
+Features:
+
+- Extracts dates from filenames (YYYY-MM-DD pattern) or file modification time
+- Uses markdown metadata (title, description) from files
+- Generates valid RSS 2.0 XML with proper XML escaping
+- Converts dates to RFC 822 format (required by RSS)
+- Supports multiple RSS feeds in the same project
+
+Example Basic Feed:
+
+    <!---rss
+    pattern: blog/*.md
+    feed_title: My Blog
+    feed_url: https://mysite.com
+    --->
+
+This generates `feed.xml` with all markdown files matching `blog/*.md` pattern.
+
+Multiple Feeds:
+
+You can create multiple `.rss` files for different content:
+
+    .src/
+    ├── feed.rss          # Main blog feed
+    ├── tutorials.rss     # Tutorial feed
+    ├── blog/
+    │   ├── 2025-01-15-post1.md
+    │   └── 2025-01-10-post2.md
+    └── tutorials/
+        ├── 2025-01-20-guide.md
+        └── 2025-01-05-intro.md
+
+With `feed.rss`:
+
+    <!---rss
+    pattern: blog/*.md
+    feed_title: Blog Posts
+    feed_url: https://example.com
+    limit: 10
+    --->
+
+And `tutorials.rss`:
+
+    <!---rss
+    pattern: tutorials/*.md
+    feed_title: Tutorials
+    feed_url: https://example.com
+    limit: 15
+    --->
+
+Output:
+
+    out/
+    ├── feed.xml          # Blog feed
+    ├── tutorials.xml     # Tutorials feed
+    ├── index.html
+    └── ...
+
+Metadata Example:
+
+Blog post file `2025-01-15-my-post.md`:
+
+    <!---
+    title: My Amazing Post
+    description: A brief summary of this post
+    --->
+
+    # My Amazing Post
+    
+    Post content here...
+
+In the RSS feed, this produces:
+
+    <item>
+        <title>My Amazing Post</title>
+        <link>https://example.com/blog/my-post.html</link>
+        <description>A brief summary of this post</description>
+        <pubDate>Mon, 15 Jan 2025 00:00:00 +0000</pubDate>
+        <guid>https://example.com/blog/my-post.html</guid>
+    </item>
 
 Custom Heading IDs
 ------------------
