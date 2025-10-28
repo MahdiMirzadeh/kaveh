@@ -1752,6 +1752,10 @@ __HTML TEMPLATE__
     /* Blog post listings */
     .post-list {
         margin: 2em 0;
+        padding: 1.5em;
+        background-color: #f9f9f9;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
     }
     .post-entry {
         margin-bottom: 2em;
@@ -1790,12 +1794,26 @@ __HTML TEMPLATE__
     
     /* Pagination */
     .pagination {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
-        margin: 2em 0;
-        padding: 1em 0;
+        margin: 2em 0 0 0;
+        padding: 1em 0 0 0;
         border-top: 2px solid #d0d0d0;
+    }
+    .pagination .prev {
+        grid-column: 1;
+        justify-self: start;
+    }
+    .pagination .page-info {
+        grid-column: 2;
+        text-align: center;
+        color: #666;
+        font-size: 0.9em;
+    }
+    .pagination .next {
+        grid-column: 3;
+        justify-self: end;
     }
     .pagination a {
         padding: 0.5em 1em;
@@ -1806,10 +1824,6 @@ __HTML TEMPLATE__
     }
     .pagination a:hover {
         background-color: #0052a3;
-    }
-    .pagination .page-info {
-        color: #666;
-        font-size: 0.9em;
     }
     
     @media print {
@@ -1883,6 +1897,10 @@ __HTML TEMPLATE__
         }
         button:active {
             background-color: #0052a3;
+        }
+        .post-list {
+            background-color: #0d0d0d;
+            border-color: #333;
         }
         .post-entry {
             border-bottom-color: #333;
