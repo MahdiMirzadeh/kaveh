@@ -1878,14 +1878,23 @@ __HTML TEMPLATE__
         border-collapse: collapse;
         width: 100%;
         margin: 1em 0;
+        table-layout: fixed;
     }
     table td, table th {
         border: 1px solid #ccc;
         padding: 8px 12px;
         text-align: left;
+        vertical-align: top;
     }
     table tr:nth-child(even) {
         background-color: #f9f9f9;
+    }
+    
+    /* Fix long strings in table cells */
+    table td code, table th code {
+        overflow-wrap: anywhere;
+        word-break: break-all;
+        white-space: normal;
     }
     
     /* Blockquotes */
