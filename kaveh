@@ -663,10 +663,19 @@ generate_paginated_directory() {
             page_title="$(printf '%s' "${page_title}" | sed 's/[&\|]/\\&/g')"
             page_desc="$(printf '%s' "${page_desc}" | sed 's/[&\|]/\\&/g')"
             
+            # Resolve header/footer for the source file's directory
+            local SRC_DIR_ABS="$(cd "$(dirname "$src_file")" 2>/dev/null && pwd)"
+            local HDR_HTML_PG="$(get_header_html "$SRC_DIR_ABS")"
+            local FTR_HTML_PG="$(get_footer_html "$SRC_DIR_ABS")"
+            [ -n "$HDR_HTML_PG" ] && HDR_HTML_PG="<header>${HDR_HTML_PG}</header>"
+            [ -n "$FTR_HTML_PG" ] && FTR_HTML_PG="<footer>${FTR_HTML_PG}</footer>"
+
             # Generate HTML
             printf "%s\n" \
                 "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
+                "${HDR_HTML_PG}" \
                 "$(md2html "${processed}")" \
+                "${FTR_HTML_PG}" \
                 "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
             | sed   -e "s|%PAGE_TITLE%|${page_title}|g" \
                     -e "s|%PAGE_DESC%|${page_desc}|g" \
@@ -1656,12 +1665,13 @@ if [ -f "${KVH_SRC}" ]; then
     > "${KVH_DST}"
     
     rm -f "${PROCESSED_FILE}"
-    cleanup_hf_map
     
     # Generate additional paginated pages if needed
     DST_DIR="$(dirname "${KVH_DST}")"
     DST_BASE="$(basename "${KVH_DST}" .html)"
     generate_paginated_directory "${KVH_SRC}" "${DST_DIR}" "${DST_BASE}"
+
+    cleanup_hf_map
     
 elif [ -d "${KVH_SRC}" ]; then
     # Directory mode - generate html files from markdowns
