@@ -206,18 +206,25 @@ generate_post_list() {
         # Extract date from filename (YYYY-MM-DD pattern)
         date=$(echo "$filename" | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}')
         
-        # Get title from metadata or generate from filename
-        title=$(getvalue "$file" "title")
-        if [ -z "$title" ]; then
-            title=$(echo "$filename" | sed -e 's/\.md$//' -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/-/ /g')
+        # Check if file is markdown
+        if [ "${file%.md}" != "$file" ]; then
+            # Markdown file - extract metadata
+            title=$(getvalue "$file" "title")
+            if [ -z "$title" ]; then
+                title=$(echo "$filename" | sed -e 's/\.md$//' -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/-/ /g')
+                title=$(echo "$title" | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+            fi
+            desc=$(getvalue "$file" "description")
+            # Generate relative URL (convert .md to .html)
+            url=$(echo "$file" | sed -e "s|^${src_dir}/||" -e 's/\.md$/.html/')
+        else
+            # Non-markdown file - use filename as title
+            title=$(echo "$filename" | sed -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/[-_]/ /g' -e 's/\.[^.]*$//')
             title=$(echo "$title" | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+            desc=""
+            # Generate relative URL (use file as-is)
+            url=$(echo "$file" | sed -e "s|^${src_dir}/||")
         fi
-        
-        # Get description
-        desc=$(getvalue "$file" "description")
-        
-        # Generate relative URL
-        url=$(echo "$file" | sed -e "s|^${src_dir}/||" -e 's/\.md$/.html/')
         
         # Output post entry
         printf '<article class="post-entry">\n'

@@ -76,6 +76,12 @@ Examples:
     
     <!---list:articles/tech/*.md:10--->
     Shows posts from subdirectory, 10 per page
+    
+    <!---list:blog/2023-*.md:5--->
+    Shows only 2023 posts using glob patterns
+    
+    <!---list:downloads/*.pdf:10--->
+    Lists non-markdown files (PDFs, images, etc.)
 
 ### Multiple Lists
 
@@ -113,6 +119,37 @@ This generates:
 Format: `{list_number}_{page_number}.html`
 - List 1, Page 2: `1_2.html`
 - List 2, Page 3: `2_3.html`
+
+### Glob Patterns
+
+List patterns support shell-style globbing:
+
+    <!---list:blog/202[3-4]-*.md:10--->
+    Matches files from 2023 and 2024
+    
+    <!---list:**/draft-*.md:5--->
+    Matches draft files in any subdirectory
+    
+    <!---list:posts/[a-m]*.md:10--->
+    Matches posts starting with letters a-m
+
+### File Types
+
+Lists work with any file type, not just markdown:
+
+- **Markdown files** (`.md`) - Extracts metadata (title, description) from front matter
+- **Other files** (`.pdf`, `.jpg`, `.zip`, etc.) - Uses filename as title
+
+Examples:
+
+    <!---list:downloads/*.pdf:10--->
+    Lists PDF documents
+    
+    <!---list:gallery/**/*.jpg:20--->
+    Lists images from all subdirectories
+    
+    <!---list:media/*.mp4:8--->
+    Lists video files
 
 Custom Heading IDs
 ------------------
