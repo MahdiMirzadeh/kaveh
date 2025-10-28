@@ -1641,15 +1641,18 @@ __HTML TEMPLATE__
     }
     .code-block code,
     pre {
-        background-color: transparent;
-        border: none;
-        display: block;
-        font-family: monospace;
-        font-size: 0.9em;
-        line-height: 1.4;
-        overflow-x: auto;
-        padding: 0;
-        white-space: pre;
+	font-family: monospace;
+	background-color: #f0f0f0;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	padding: 1em;
+	margin: 1em 0;
+	font-size: 1em;
+	line-height: 1.5;
+	color: #222;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	overflow-x: visible;
     }
     
     /* Inline code */
@@ -1934,6 +1937,14 @@ __HTML TEMPLATE__
         .code-block pre {
             color: #e0e0e0;
         }
+	pre {
+		background-color: #1e1e1e;
+		border-color: #333;
+		color: #f2f2f2;
+		white-space: pre-wrap;
+		word-wrap: break-word;
+		overflow-x: visible;
+	}
         p code, li code, td code, blockquote code {
             background-color: #0d0d0d;
             border-color: #333;
