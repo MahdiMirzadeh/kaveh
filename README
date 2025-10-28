@@ -11,6 +11,7 @@ Features
 - Footnotes with auto-linking
 - Syntax-highlighted code blocks
 - Tables, lists, and task lists
+- Per-directory headers and footers with hierarchical overrides
 - Built-in responsive dark mode
 - Minified CSS output
 - SEO-friendly semantic HTML
@@ -315,6 +316,37 @@ Recommended project layout:
         └── images/
 
 Non-markdown files (images, CSS, etc.) are automatically copied to output.
+
+Headers and Footers
+-------------------
+You can define per-directory headers and footers using Markdown files named `_header.md` and `_footer.md`.
+Their HTML will be injected into the page inside semantic `<header>` and `<footer>` tags.
+
+- Place `_header.md` and/or `_footer.md` in any directory under the source (default: `.src`).
+- For each page, Kaveh picks the nearest ancestor `_header.md` and `_footer.md`.
+  - A subdirectory’s file overrides the parent’s.
+  - Header and footer are resolved independently; you can override one without the other.
+- These files are not turned into pages and are ignored by lists and output copying.
+- Full Markdown is supported (tables, lists, images, code, etc.).
+
+Example:
+
+    .src/
+      _header.md                # applies to everything under .src/ unless overridden
+      a/
+        _footer.md              # overrides footer for a/ and below
+        b/
+          c/
+            _header.md          # overrides header for c/ and below
+          page.md               # header from .src/_header.md, footer from a/_footer.md
+
+Single-file mode:
+- When running `kaveh -i path/to/file.md -o out/file.html`, Kaveh also applies header/footer
+  from the file’s directory (and its parents) using the same rules.
+
+Performance:
+- Resolution is computed in one pass across directories with caching; overhead is negligible
+  compared to Markdown conversion.
 
 Conflict Resolution
 -------------------
