@@ -45,6 +45,553 @@ getvalue() {
     ' "$1"
 }
 
+get_output_filename() {
+    # Determine output filename avoiding conflicts with source files
+    # $1 = desired output path (e.g., "index.html" or "blog/post.html")
+    local desired_path="$1"
+    local dir_part=$(dirname "$desired_path")
+    local file_part=$(basename "$desired_path")
+    local name_part="${file_part%.*}"
+    local ext_part="${file_part##*.}"
+    
+    # Build full path to check in source
+    local check_path
+    if [ "$dir_part" = "." ]; then
+        check_path="${KVH_SRC}/${file_part}"
+    else
+        check_path="${KVH_SRC}/${dir_part}/${file_part}"
+    fi
+    
+    # If no conflict, return the desired path
+    if [ ! -e "$check_path" ]; then
+        echo "$desired_path"
+        return
+    fi
+    
+    # Conflict exists, try with underscore suffix
+    local suffix="_"
+    local suffix_num=""
+    
+    while true; do
+        local test_name="${name_part}${suffix}${suffix_num}.${ext_part}"
+        if [ "$dir_part" = "." ]; then
+            check_path="${KVH_SRC}/${test_name}"
+        else
+            check_path="${KVH_SRC}/${dir_part}/${test_name}"
+        fi
+        
+        if [ ! -e "$check_path" ]; then
+            if [ "$dir_part" = "." ]; then
+                echo "$test_name"
+            else
+                echo "${dir_part}/${test_name}"
+            fi
+            return
+        fi
+        
+        if [ -z "$suffix_num" ]; then
+            suffix_num="2"
+        else
+            suffix_num=$((suffix_num + 1))
+        fi
+    done
+}
+
+get_pagination_dirname() {
+    # Determine pagination directory name avoiding conflicts
+    # $1 = source file, $2 = base name (default if no custom), $3 = custom_dir (optional)
+    local src_file="$1"
+    local base_name="$2"
+    local custom_dir="$3"
+    
+    # Use custom directory if provided, otherwise use base name
+    local desired_name="${custom_dir:-$base_name}"
+    
+    # Check if desired name conflicts with source content
+    if [ ! -e "${KVH_SRC}/${desired_name}" ]; then
+        # No conflict, use the desired name directly
+        echo "${desired_name}"
+        return
+    fi
+    
+    # Conflict exists, try with underscore suffix
+    local suffix="_"
+    local suffix_num=""
+    
+    while [ -e "${KVH_SRC}/${desired_name}${suffix}${suffix_num}" ]; do
+        if [ -z "$suffix_num" ]; then
+            suffix_num="2"
+        else
+            suffix_num=$((suffix_num + 1))
+        fi
+    done
+    
+    echo "${desired_name}${suffix}${suffix_num}"
+}
+
+process_lists() {
+    # Process list directives in markdown file
+    # $1 = input file
+    local input_file="$1"
+    
+    # Check if file contains list directive
+    if ! grep -q '<!---list:' "${input_file}" 2>/dev/null; then
+        cat "${input_file}"
+        return
+    fi
+    
+    # Process list directives
+    awk -v src_dir="${KVH_SRC}" '
+        /<!---list:/ {
+            # Extract pattern and per_page
+            if (match($0, /<!---list:([^:]+):([0-9]+)--->/)) {
+                full = substr($0, RSTART, RLENGTH)
+                gsub(/<!---list:/, "", full)
+                gsub(/--->/,"", full)
+                split(full, parts, ":")
+                pattern = parts[1]
+                per_page = parts[2]
+            } else if (match($0, /<!---list:([^-]+)--->/)) {
+                full = substr($0, RSTART, RLENGTH)
+                gsub(/<!---list:/, "", full)
+                gsub(/--->/,"", full)
+                pattern = full
+                per_page = 999
+            }
+            
+            # Output placeholder for shell replacement
+            print "__KVHLIST__" pattern "__" per_page "__"
+            next
+        }
+        { print }
+    ' "${input_file}"
+}
+
+generate_post_list() {
+    # $1 = source directory, $2 = pattern, $3 = page number, $4 = per_page, $5 = current file, $6 = list_id, $7 = total lists, $8 = custom_dir
+    local src_dir="$1"
+    local pattern="$2"
+    local page="${3:-1}"
+    local per_page="${4:-10}"
+    local current_file="${5:-index.html}"
+    local list_id="${6:-1}"
+    local total_lists="${7:-1}"
+    local custom_dir="$8"
+    
+    # Get list of files sorted by date (newest first)
+    # Use -path to match full paths, not just filenames
+    local files=$(find "${src_dir}" -type f -path "*/${pattern}" 2>/dev/null | sort -r)
+    local total=$(echo "$files" | wc -l)
+    
+    [ -z "$files" ] && return
+    
+    # Calculate pagination
+    local total_pages=$(( ($total + $per_page - 1) / $per_page ))
+    local start=$(( ($page - 1) * $per_page + 1 ))
+    local end=$(( $page * $per_page ))
+    [ $end -gt $total ] && end=$total
+    
+    # Start output
+    printf '<div class="post-list">\n'
+    
+    # Process files using awk to handle line numbers
+    echo "$files" | awk -v start="$start" -v end="$end" -v src_dir="$src_dir" '
+        NR >= start && NR <= end {
+            print $0
+        }
+    ' | while IFS= read -r file; do
+        # Extract filename
+        filename=$(basename "$file")
+        
+        # Extract date from filename (YYYY-MM-DD pattern)
+        date=$(echo "$filename" | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}')
+        
+        # Get title from metadata or generate from filename
+        title=$(getvalue "$file" "title")
+        if [ -z "$title" ]; then
+            title=$(echo "$filename" | sed -e 's/\.md$//' -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/-/ /g')
+            title=$(echo "$title" | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+        fi
+        
+        # Get description
+        desc=$(getvalue "$file" "description")
+        
+        # Generate relative URL
+        url=$(echo "$file" | sed -e "s|^${src_dir}/||" -e 's/\.md$/.html/')
+        
+        # Output post entry
+        printf '<article class="post-entry">\n'
+        printf '<h3><a href="/%s">%s</a></h3>\n' "$url" "$title"
+        
+        if [ -n "$date" ]; then
+            printf '<time datetime="%s">%s</time>\n' "$date" "$date"
+        fi
+        
+        if [ -n "$desc" ]; then
+            printf '<p>%s</p>\n' "$desc"
+        fi
+        
+        printf '</article>\n'
+    done
+    
+    # Generate pagination for static HTML
+    if [ $total -gt $per_page ]; then
+        printf '<nav class="pagination">\n'
+        
+        # Determine the link prefix based on current_file
+        local link_prefix=""
+        if echo "$current_file" | grep -q '/'; then
+            # Already in subdirectory (e.g., "blog-example_/1_2.html")
+            link_prefix=$(echo "$current_file" | sed 's|/[^/]*$|/|')
+        else
+            # Main file (e.g., "blog-example.html"), compute pagination directory name
+            local base_name=$(echo "$current_file" | sed 's|\.html$||')
+            local pagination_dirname=$(get_pagination_dirname "" "$base_name" "$custom_dir")
+            link_prefix="${pagination_dirname}/"
+        fi
+        
+        if [ $page -gt 1 ]; then
+            if [ $page -eq 2 ]; then
+                # Link to first page
+                printf '<a href="/%s%d_1.html" class="prev">← Previous</a>\n' "$link_prefix" "$list_id"
+            else
+                # Link to previous page
+                printf '<a href="/%s%d_%d.html" class="prev">← Previous</a>\n' "$link_prefix" "$list_id" $((page - 1))
+            fi
+        fi
+        
+        printf '<span class="page-info">List %d - Page %d of %d</span>\n' "$list_id" "$page" "$total_pages"
+        
+        if [ $page -lt $total_pages ]; then
+            printf '<a href="/%s%d_%d.html" class="next">Next →</a>\n' "$link_prefix" "$list_id" $((page + 1))
+        fi
+        
+        printf '</nav>\n'
+    fi
+    
+    printf '</div>\n'
+}
+
+generate_paginated_directory() {
+    # Generate paginated pages in a dedicated directory for files with list directives
+    # $1 = source file, $2 = output directory, $3 = base filename (without extension)
+    local src_file="$1"
+    local dst_dir="$2"
+    local base_name="$3"
+    
+    # Check if file has list directives
+    local list_count=$(grep -c '<!---list:' "$src_file" 2>/dev/null)
+    
+    # If grep fails or returns non-numeric, set to 0
+    [ -z "$list_count" ] && list_count=0
+    case "$list_count" in
+        ''|*[!0-9]*) list_count=0 ;;
+    esac
+    
+    # Skip if no list directive
+    [ "$list_count" -eq 0 ] && return
+    
+    # Parse all list directives to find which ones need pagination
+    local list_directives="$(mktemp)"
+    grep '<!---list:' "$src_file" > "$list_directives"
+    
+    # Check if any list needs pagination (has per_page specified and > files)
+    local needs_pagination=0
+    local list_num=1
+    
+    while IFS= read -r list_line; do
+        local pattern per_page total_files list_custom_dir
+        
+        # Match pattern:per_page:custom_dir or pattern:per_page
+        if echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*:[^-]*---'; then
+            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\1/')
+            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\2/')
+            list_custom_dir=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\3/')
+        elif echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*---'; then
+            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\1/')
+            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\2/')
+            list_custom_dir=""
+        else
+            list_num=$((list_num + 1))
+            continue
+        fi
+        
+        # Count total matching files
+        total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        
+        if [ "$total_files" -gt "$per_page" ]; then
+            needs_pagination=1
+            break
+        fi
+        list_num=$((list_num + 1))
+    done < "$list_directives"
+    
+    rm -f "$list_directives"
+    
+    # Skip if no pagination needed
+    [ "$needs_pagination" -eq 0 ] && return
+    
+    # Parse list directives and generate pages
+    local list_info="$(mktemp)"
+    
+    # Collect information about ALL lists (to preserve list IDs)
+    local list_id=1
+    grep '<!---list:' "$src_file" | while IFS= read -r list_line; do
+        local pattern per_page total_files total_pages list_custom_dir
+        
+        # Match pattern:per_page:custom_dir or pattern:per_page
+        if echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*:[^-]*---'; then
+            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\1/')
+            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\2/')
+            list_custom_dir=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\3/')
+        elif echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*---'; then
+            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\1/')
+            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\2/')
+            list_custom_dir=""
+        else
+            # Increment list_id for ALL lists, not just those with pagination
+            list_id=$((list_id + 1))
+            continue
+        fi
+        
+        # Count total matching files
+        total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        
+        if [ "$total_files" -gt 0 ]; then
+            # Calculate number of pages needed
+            total_pages=$(( ($total_files + $per_page - 1) / $per_page ))
+            
+            # Store: list_id|pattern|per_page|total_pages|custom_dir
+            # Only store if pagination is needed (total_pages > 1)
+            if [ "$total_pages" -gt 1 ]; then
+                echo "${list_id}|${pattern}|${per_page}|${total_pages}|${list_custom_dir}"
+            fi
+        fi
+        # Increment list_id for ALL lists, not just those with pagination
+        list_id=$((list_id + 1))
+    done > "$list_info"
+    
+    # Generate all combinations of list pages
+    while IFS='|' read -r lid pattern per_page total_pages list_custom_dir; do
+        # Determine pagination directory for THIS specific list
+        local pagination_dirname=$(get_pagination_dirname "$src_file" "$base_name" "$list_custom_dir")
+        local pagination_dir="${dst_dir}/${pagination_dirname}"
+        mkdir -p "$pagination_dir"
+        
+        local page=1
+        while [ $page -le $total_pages ]; do
+            # Create a temporary markdown file with the page-specific directive
+            local temp_md="$(mktemp)"
+            local list_counter=1
+            
+            # Replace list directives with page-specific versions
+            awk -v target_list="$lid" -v target_page="$page" -v list_count="$list_count" '
+                BEGIN { current_list = 0 }
+                /<!---list:/ {
+                    current_list++
+                    line = $0
+                    
+                    # Extract pattern, per_page, and optional custom_dir
+                    if (match(line, /<!---list:([^:]+):([0-9]+):([^-]+)--->/)) {
+                        full = substr(line, RSTART, RLENGTH)
+                        gsub(/<!---list:/, "", full)
+                        gsub(/--->/,"", full)
+                        split(full, parts, ":")
+                        pattern = parts[1]
+                        per_page = parts[2]
+                        custom_dir = parts[3]
+                        
+                        if (current_list == target_list) {
+                            # This is the list we want to paginate
+                            print "<!---list:" pattern ":" per_page ":" target_page ":" current_list ":" custom_dir "--->"
+                        } else {
+                            # Other lists show page 1
+                            print "<!---list:" pattern ":" per_page ":1:" current_list ":" custom_dir "--->"
+                        }
+                    } else if (match(line, /<!---list:([^:]+):([0-9]+)--->/)) {
+                        full = substr(line, RSTART, RLENGTH)
+                        gsub(/<!---list:/, "", full)
+                        gsub(/--->/,"", full)
+                        split(full, parts, ":")
+                        pattern = parts[1]
+                        per_page = parts[2]
+                        
+                        if (current_list == target_list) {
+                            # This is the list we want to paginate
+                            print "<!---list:" pattern ":" per_page ":" target_page ":" current_list "--->"
+                        } else {
+                            # Other lists show page 1
+                            print "<!---list:" pattern ":" per_page ":1:" current_list "--->"
+                        }
+                    } else {
+                        # No pagination - pass through
+                        print line
+                    }
+                    next
+                }
+                { print }
+            ' "$src_file" > "$temp_md"
+            
+            # Generate the HTML for this page
+            local page_file="${lid}_${page}.html"
+            local processed="$(mktemp)"
+            
+            process_blog_lists "$temp_md" "${pagination_dirname}/${page_file}" > "$processed"
+            
+            # Extract metadata
+            local page_icon=$(getvalue "$src_file" "icon")
+            local page_title=$(getvalue "$src_file" "title")
+            local page_desc=$(getvalue "$src_file" "description")
+            
+            [ "$page_icon" ] || page_icon="${KVH_PAGE_ICON}"
+            [ "$page_title" ] || page_title="${KVH_PAGE_NAME}"
+            [ "$page_desc" ] || page_desc="${KVH_PAGE_DESC}"
+            
+            # Add list and page info to title
+            if [ "$list_count" -gt 1 ]; then
+                page_title="${page_title} - List ${lid} Page ${page}"
+            else
+                page_title="${page_title} - Page ${page}"
+            fi
+            
+            # Escape for sed
+            page_icon="$(printf '%s' "${page_icon}" | sed 's/[&\|]/\\&/g')"
+            page_title="$(printf '%s' "${page_title}" | sed 's/[&\|]/\\&/g')"
+            page_desc="$(printf '%s' "${page_desc}" | sed 's/[&\|]/\\&/g')"
+            
+            # Generate HTML
+            printf "%s\n" \
+                "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
+                "$(md2html "${processed}")" \
+                "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
+            | sed   -e "s|%PAGE_TITLE%|${page_title}|g" \
+                    -e "s|%PAGE_DESC%|${page_desc}|g" \
+                    -e "s|%PAGE_ICON%|${page_icon}|g" \
+                    -e "s|%KVH_VERSION%|${KVH_VERSION}|g" \
+            | minify_html \
+            > "${pagination_dir}/${page_file}"
+            
+            rm -f "$temp_md" "$processed"
+            page=$((page + 1))
+        done
+    done < "$list_info"
+    
+    rm -f "$list_info"
+}
+
+process_blog_lists() {
+    # Process list directives and generate HTML
+    # $1 = input file, $2 = current output file (for pagination links), $3 = current list id (optional), $4 = total lists (optional)
+    local input="$1"
+    local current_file="$2"
+    local current_list_id="${3:-0}"
+    local total_lists="${4:-1}"
+    local temp="$(mktemp)"
+    
+    # Count total list directives if not provided
+    if [ "$current_list_id" -eq 0 ]; then
+        total_lists=$(grep -c '<!---list:' "$input" 2>/dev/null)
+        [ -z "$total_lists" ] && total_lists=0
+        case "$total_lists" in
+            ''|*[!0-9]*) total_lists=0 ;;
+        esac
+        [ "$total_lists" -eq 0 ] && total_lists=1
+    fi
+    
+    awk '/<!---list:/ {
+        line = $0
+        if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+):([^-]+)--->/)) {
+            # Pattern:per_page:page:list_id:custom_dir
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            split(full_match, parts, ":")
+            pattern = parts[1]
+            per_page = parts[2]
+            page_num = parts[3]
+            list_id = parts[4]
+            custom_dir = parts[5]
+            print "__KVHLIST__" pattern "__" per_page "__" page_num "__" list_id "__" custom_dir "__"
+        } else if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+)--->/)) {
+            # Pattern:per_page:page:list_id
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            split(full_match, parts, ":")
+            pattern = parts[1]
+            per_page = parts[2]
+            page_num = parts[3]
+            list_id = parts[4]
+            print "__KVHLIST__" pattern "__" per_page "__" page_num "__" list_id "____"
+        } else if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+)--->/)) {
+            # Pattern:per_page:page (list_id will be auto-assigned)
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            split(full_match, parts, ":")
+            pattern = parts[1]
+            per_page = parts[2]
+            page_num = parts[3]
+            print "__KVHLIST__" pattern "__" per_page "__" page_num "__0____"
+        } else if (match(line, /<!---list:([^:]+):([0-9]+):([^-]+)--->/)) {
+            # Pattern:per_page:custom_dir (page defaults to 1, list_id auto-assigned)
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            split(full_match, parts, ":")
+            pattern = parts[1]
+            per_page = parts[2]
+            custom_dir = parts[3]
+            print "__KVHLIST__" pattern "__" per_page "__1__0__" custom_dir "__"
+        } else if (match(line, /<!---list:([^:]+):([0-9]+)--->/)) {
+            # Pattern:per_page (page defaults to 1, list_id auto-assigned)
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            split(full_match, parts, ":")
+            pattern = parts[1]
+            per_page = parts[2]
+            print "__KVHLIST__" pattern "__" per_page "__1__0____"
+        } else if (match(line, /<!---list:([^>-]+)--->/)) {
+            # Just pattern (no pagination, list_id auto-assigned)
+            full_match = substr(line, RSTART, RLENGTH)
+            gsub(/<!---list:/, "", full_match)
+            gsub(/--->/,"", full_match)
+            pattern = full_match
+            print "__KVHLIST__" pattern "__999__1__0____"
+        }
+        next
+    }
+    { print }' "$input" > "$temp"
+    
+    # Replace placeholders with auto-incrementing list_id
+    local auto_list_id=1
+    while IFS= read -r line; do
+        if echo "$line" | grep -q '^__KVHLIST__'; then
+            pattern=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\1/')
+            per_page=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\2/')
+            page_num=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\3/')
+            list_id=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\4/')
+            list_custom_dir=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\5/')
+            
+            # Use provided list_id if specified (non-zero), otherwise auto-assign
+            if [ "$current_list_id" -gt 0 ]; then
+                list_id="$current_list_id"
+            elif [ "$list_id" -eq 0 ]; then
+                list_id="$auto_list_id"
+                auto_list_id=$((auto_list_id + 1))
+            fi
+            
+            # Use the list-specific custom_dir from the directive
+            generate_post_list "${KVH_SRC}" "$pattern" "$page_num" "$per_page" "$current_file" "$list_id" "$total_lists" "$list_custom_dir"
+        else
+            echo "$line"
+        fi
+    done < "$temp"
+    
+    rm -f "$temp"
+}
+
 md2html() {
     # Remove KVH metadata comments and parse markdown to HTML using pure POSIX shell
     sed -e '/<!---/,/--->/d' -e '/<!---/,/-->/{/^[[:space:]]*$/d;}' "$1" | awk '
@@ -772,9 +1319,14 @@ if [ -f "${KVH_SRC}" ]; then
     PAGE_NAME="$(printf '%s' "${PAGE_NAME}" | sed 's/[&\|]/\\&/g')"
     PAGE_DESC="$(printf '%s' "${PAGE_DESC}" | sed 's/[&\|]/\\&/g')"
     
+    # Process blog lists first, then convert to HTML
+    PROCESSED_FILE="$(mktemp)"
+    OUTPUT_BASENAME="$(basename "${KVH_DST}")"
+    process_blog_lists "${KVH_SRC}" "${OUTPUT_BASENAME}" > "${PROCESSED_FILE}"
+    
     printf "%s\n" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
-        "$(md2html "${KVH_SRC}")" \
+        "$(md2html "${PROCESSED_FILE}")" \
         "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
     | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
             -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
@@ -782,6 +1334,13 @@ if [ -f "${KVH_SRC}" ]; then
             -e "s|%KVH_VERSION%|${KVH_VERSION}|g" \
     | minify_html \
     > "${KVH_DST}"
+    
+    rm -f "${PROCESSED_FILE}"
+    
+    # Generate additional paginated pages if needed
+    DST_DIR="$(dirname "${KVH_DST}")"
+    DST_BASE="$(basename "${KVH_DST}" .html)"
+    generate_paginated_directory "${KVH_SRC}" "${DST_DIR}" "${DST_BASE}"
     
 elif [ -d "${KVH_SRC}" ]; then
     # Directory mode - generate html files from markdowns
@@ -804,23 +1363,45 @@ elif [ -d "${KVH_SRC}" ]; then
         PAGE_ICON="$(printf '%s' "${PAGE_ICON}" | sed 's/[&\|]/\\&/g')"
         PAGE_NAME="$(printf '%s' "${PAGE_NAME}" | sed 's/[&\|]/\\&/g')"
         PAGE_DESC="$(printf '%s' "${PAGE_DESC}" | sed 's/[&\|]/\\&/g')"
+        
+        # Determine output filename avoiding conflicts
+        DESIRED_OUTPUT="${FILE_NAME%.md}.html"
+        OUTPUT_FILE=$(get_output_filename "$DESIRED_OUTPUT")
+        OUTPUT_BASENAME=$(basename "$OUTPUT_FILE")
+        
+        # Process blog lists first, then convert to HTML
+        PROCESSED_FILE="$(mktemp)"
+        process_blog_lists "${FILE}" "${OUTPUT_BASENAME}" > "${PROCESSED_FILE}"
 
         printf "%s\n" \
             "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '/PAGE_DATA/,//d')" \
-            "$(md2html "${FILE}")" \
+            "$(md2html "${PROCESSED_FILE}")" \
             "$(sed '0,/^__HTML TEMPLATE__$/d' "$0" | sed -e '0,/%PAGE_DATA%/d')" \
         | sed   -e "s|%PAGE_TITLE%|${PAGE_NAME}|g" \
                 -e "s|%PAGE_DESC%|${PAGE_DESC}|g" \
                 -e "s|%PAGE_ICON%|${PAGE_ICON}|g" \
                 -e "s|%KVH_VERSION%|${KVH_VERSION}|g" \
         | minify_html \
-        > "${KVH_DST}/${FILE_NAME%.md}.html"
+        > "${KVH_DST}/${OUTPUT_FILE}"
+        
+        rm -f "${PROCESSED_FILE}"
+        
+        # Generate additional paginated pages if needed (use original base name)
+        OUTPUT_BASE="${OUTPUT_FILE%.html}"
+        OUTPUT_BASE="$(basename "$OUTPUT_BASE")"
+        generate_paginated_directory "${FILE}" "${KVH_DST}/${FILE_DIR}" "${OUTPUT_BASE}"
 
         # Minify html files: (just removing characters within tags, not effecting JS,CSS)
         #sed -i ':a;N;$!ba;s/>\s*</></g' "${KVH_DST}/${FILE_NAME%.md}.html"
 
     done
 
+    # Copy directories (including empty ones) to destination
+    find "${KVH_SRC}" -type d | while read DIR; do
+        DIR_NAME="${DIR##$KVH_SRC/}"
+        [ -n "${DIR_NAME}" ] && mkdir -p "${KVH_DST}/${DIR_NAME}"
+    done
+    
     # Copy non-markdown files/assets to destination
     find "${KVH_SRC}" -type f ! -name "*.md" | while read FILE; do
         FILE_NAME="${FILE##$KVH_SRC/}"
@@ -1080,6 +1661,63 @@ __HTML TEMPLATE__
         background-color: #003d7a;
     }
     
+    /* Blog post listings */
+    .post-list {
+        margin: 2em 0;
+    }
+    .post-entry {
+        margin-bottom: 2em;
+        padding-bottom: 1.5em;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    .post-entry:last-of-type {
+        border-bottom: none;
+    }
+    .post-entry h3 {
+        margin-top: 0;
+        margin-bottom: 0.5em;
+    }
+    .post-entry h3 a {
+        color: #333;
+    }
+    .post-entry h3 a:hover {
+        color: #0066cc;
+    }
+    .post-entry time {
+        display: block;
+        color: #666;
+        font-size: 0.9em;
+        margin-bottom: 0.5em;
+    }
+    .post-entry p {
+        margin: 0.5em 0 0 0;
+        color: #555;
+    }
+    
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 2em 0;
+        padding: 1em 0;
+        border-top: 2px solid #d0d0d0;
+    }
+    .pagination a {
+        padding: 0.5em 1em;
+        background-color: #0066cc;
+        color: #fff;
+        border-radius: 4px;
+        text-decoration: none;
+    }
+    .pagination a:hover {
+        background-color: #0052a3;
+    }
+    .pagination .page-info {
+        color: #666;
+        font-size: 0.9em;
+    }
+    
     @media print {
         body {
             max-width: none;
@@ -1152,6 +1790,33 @@ __HTML TEMPLATE__
         button:active {
             background-color: #0052a3;
         }
+        .post-entry {
+            border-bottom-color: #333;
+        }
+        .post-entry h3 a {
+            color: #e0e0e0;
+        }
+        .post-entry h3 a:hover {
+            color: #cdf;
+        }
+        .post-entry time {
+            color: #999;
+        }
+        .post-entry p {
+            color: #aaa;
+        }
+        .pagination {
+            border-top-color: #444;
+        }
+        .pagination a {
+            background-color: #0066cc;
+        }
+        .pagination a:hover {
+            background-color: #3388dd;
+        }
+        .pagination .page-info {
+            color: #999;
+        }
     }
 </style>
 </head>
@@ -1164,4 +1829,3 @@ __HTML TEMPLATE__
 </footer>
 </body>
 </html>
-

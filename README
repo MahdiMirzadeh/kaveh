@@ -49,6 +49,71 @@ Add metadata at the top of your .md files using HTML comments:
 
 All fields are optional and will use defaults if not specified.
 
+List Pagination (kaveh exclusive)
+---------------
+Automatically generate paginated lists of markdown files:
+
+    <!---list:blog/*.md:10--->
+
+This creates a list of all files matching `blog/*.md`, showing 10 posts per page.
+
+### Syntax:
+
+    <!---list:pattern--->
+    <!---list:pattern:per_page--->
+    <!---list:pattern:per_page:custom_dir--->
+
+Examples:
+
+    <!---list:blog/*.md--->
+    Shows all blog posts (no pagination)
+    
+    <!---list:blog/*.md:5--->
+    Shows 5 posts per page with pagination
+    
+    <!---list:blog/*.md:10:posts--->
+    Shows 10 posts per page in custom "posts/" directory
+    
+    <!---list:articles/tech/*.md:10--->
+    Shows posts from subdirectory, 10 per page
+
+### Multiple Lists
+
+You can have multiple lists in the same file. Each list gets its own ID:
+
+    # My Blog
+    
+    ## Latest Posts
+    <!---list:blog/*.md:2--->
+    
+    ## Tutorial Archive
+    <!---list:tutorials/*.md:5--->
+
+Pagination files are generated in dedicated directories:
+- Source: `blog-example.md`
+- Output: `blog-example.html` (main page)
+- Pagination: `blog-example/1_2.html`, `blog-example/2_1.html`, etc.
+
+You can specify custom directory names per list:
+- Directive: `<!---list:blog/*.md:5:posts--->`
+- Output: `posts/1_2.html`, `posts/2_1.html`, etc.
+
+Each list can have its own custom directory:
+
+    ## Latest Posts
+    <!---list:blog/*.md:5:posts--->
+    
+    ## Tutorials  
+    <!---list:tutorials/*.md:10:guides--->
+
+This generates:
+- `posts/1_1.html`, `posts/1_2.html` (for blog posts)
+- `guides/2_1.html`, `guides/2_2.html` (for tutorials)
+
+Format: `{list_number}_{page_number}.html`
+- List 1, Page 2: `1_2.html`
+- List 2, Page 3: `2_3.html`
+
 Custom Heading IDs
 ------------------
 Create custom anchor IDs for headings:
@@ -96,6 +161,51 @@ Recommended project layout:
         └── images/
 
 Non-markdown files (images, CSS, etc.) are automatically copied to output.
+
+Conflict Resolution
+-------------------
+Kaveh automatically avoids naming conflicts between generated and source files.
+
+### File Conflicts
+
+If a source file has the same name as a generated HTML file:
+
+    .src/index.html    (your file)
+    .src/index.md      (generates index_.html instead)
+
+Output:
+
+    out/index.html     (copied from source)
+    out/index_.html    (generated from index.md)
+
+If `index_.html` also exists in source, it becomes `index_2.html`, and so on.
+
+### Directory Conflicts
+
+Pagination directories follow the same pattern:
+
+    .src/blog-example.md        (list file)
+    .src/blog-example/          (your directory)
+
+Output:
+
+    out/blog-example.html       (main page)
+    out/blog-example/           (your directory, copied)
+    out/blog-example_/          (pagination directory)
+
+If `blog-example_/` also conflicts, it becomes `blog-example_2/`, etc.
+
+With custom directory names:
+
+    <!---list:blog/*.md:5:posts--->
+    .src/posts/                 (your directory)
+
+Output:
+
+    out/posts/                  (your directory, copied)
+    out/posts_/                 (pagination directory)
+
+This ensures your source files are never overwritten or skipped.
 
 Automation Examples
 -------------------
