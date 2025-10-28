@@ -3,7 +3,7 @@
 # This is a simple statis website generator script.
 #
 KVH_COPYRIGHT="Copyright (C) 2021-2025 Mahdi Mirzadeh"
-KVH_VERSION="0.2"
+KVH_VERSION="0.3"
 KVH_SRC="${PWD}/.src"
 KVH_DST="${PWD}"
 
@@ -11,11 +11,13 @@ KVH_DST="${PWD}"
 KVH_PAGE_NAME="Kaveh"
 KVH_PAGE_ICON="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAFxAAABcQG7iuH0AAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAhVJREFUOI2FkU1IlHEQxn/z33fbJSIIDx0ioUChj0Mm7R7KNRc7SAUdyiDCDoqXCC9BeKpTHYRIyFMRBBWEUFCgh0rIbFM3lKAsSKJLEn2Z7Yfr7vvOdAjD6FXnNPA8/GaeGVilekZS7ReG9x9ZTnerAVSkLUC6ukaaq8N0b2K6tm12IRbJ+7FM3pfGQhCd7ExksgCXM+lNvgXbRfgW8e080P4fwIxzgnb7lAtYLA52v29039uyCmrBekzuOvEuQnAtdAPBvqR3vHkAcHsyOUggxwz6/6STaoQ4sfhP8oXQiB7A0NTOR3OVNRR9dSbulcGsAGBxjG4tFtLAdChgd837ppWO2PO88ThwCywapq/6BcOGxGyX4rJhuiw298YSVcWoNhUqUamok4q6M4G5kgI5dRRVbuR811wwV8j57lk+gLzKd28RoGs0iUqfc1wydQEic2f3Pj20dFrnk/S4mdzE6WsJJCniGv5GOFr3csBBB0ariwSjK2R6B2DiNqsj9c8NTtRnHwaqp0wjvcsCxFpN3ZaqwrqW7MGBzxLmuTqWqPI13m++dpSABeLMAfMlqn9Bx50Dj08uer0wwOnE+I/eTMMLdZEhD4ZLfjAvJntU3AxwZak3EgbY0JLcKM59UnN1anZ9Qdxw2WRrGRlcUD5sO1z/dap/ypbdwMOrr5hLgUyISEoCQYwZjNoIria3tvgRmAX4DdT85ywDHCURAAAAAElFTkSuQmCC"
 KVH_PAGE_DESC="Kaveh is a simple website generator, it aims to generate static html files from markdown files, no databases and bloat-web, just texts."
+KVH_SITEMAP=""
 
-while getopts :vi:o: flag; do
+while getopts :vi:o:s: flag; do
     case "${flag}" in
         i) KVH_SRC=${OPTARG%/};;
         o) KVH_DST=${OPTARG%/};;
+        s) KVH_SITEMAP=${OPTARG};;
         v)
             printf "\n"
             printf " _  __               _      \tKaveh v%s\n" "${KVH_VERSION}"
@@ -27,7 +29,7 @@ while getopts :vi:o: flag; do
             exit
         ;;
         *)
-            printf "%s [-v] [-i SOURCE_DIR] [-o OUTPUT_DIR]\n" "$0"
+            printf "%s [-v] [-i SOURCE_DIR] [-o OUTPUT_DIR] [-s BASE_URL]\n" "$0"
             exit
         ;;
     esac
@@ -1642,6 +1644,69 @@ date_to_rfc822() {
     fi
 }
 
+generate_sitemap() {
+    # Generate sitemap.xml from all HTML files in destination
+    # $1 = destination directory
+    # $2 = base URL (optional, default: https://example.com)
+    # $3 = source directory (to check for HTML files that should be excluded)
+    local dst_dir="$1"
+    local base_url="${2:-https://example.com}"
+    local src_dir="${3:-}"
+    local sitemap_file="${dst_dir}/sitemap.xml"
+    
+    # Remove trailing slash from base URL
+    base_url="${base_url%/}"
+    
+    # Start XML
+    {
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+        printf '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        
+        # Build find command to exclude source directory if it's within destination
+        local find_cmd="find \"${dst_dir}\" -type f -name \"*.html\""
+        
+        # If source dir is within destination, exclude it from find
+        if [ -n "$src_dir" ]; then
+            local src_basename=$(basename "$src_dir")
+            find_cmd="find \"${dst_dir}\" -type d -name \"${src_basename}\" -prune -o -type f -name \"*.html\" -print"
+        fi
+        
+        # Find all HTML files in destination (excluding source directory)
+        eval "$find_cmd" | sort | while IFS= read -r html_file; do
+            # Get relative path from destination
+            local rel_path="${html_file#$dst_dir}"
+            rel_path="${rel_path#/}"
+            
+            # Get filename for checking
+            local filename=$(basename "$html_file")
+            
+            # Skip pagination files (pattern: N_N.html where N is digit)
+            if echo "$filename" | grep -qE '^[0-9]+_[0-9]+\.html$'; then
+                continue
+            fi
+            
+            # Skip if this HTML exists in source (wasn't generated from markdown)
+            if [ -n "$src_dir" ] && [ -f "${src_dir}/${rel_path}" ]; then
+                continue
+            fi
+            
+            # Get last modified date in ISO 8601 format
+            local lastmod
+            lastmod=$(date -r "${html_file}" "+%Y-%m-%d" 2>/dev/null || date "+%Y-%m-%d")
+            
+            # Build URL
+            local url="${base_url}/${rel_path}"
+            
+            printf '  <url>\n'
+            printf '    <loc>%s</loc>\n' "$(escape_xml "$url")"
+            printf '    <lastmod>%s</lastmod>\n' "$lastmod"
+            printf '  </url>\n'
+        done
+        
+        printf '</urlset>\n'
+    } > "${sitemap_file}"
+}
+
 generate_rss() {
     # Generate RSS feed from .rss file
     # $1 = source .rss file
@@ -1895,6 +1960,11 @@ elif [ -d "${KVH_SRC}" ]; then
         [ -d "${KVH_DST}/${FILE_DIR}" ] || mkdir -p "${KVH_DST}/${FILE_DIR}"
         cp "${FILE}" "${KVH_DST}/${FILE_NAME}"
     done
+    
+    # Generate sitemap.xml if enabled (when KVH_SITEMAP contains a URL)
+    if [ -n "${KVH_SITEMAP}" ] && [ "${KVH_SITEMAP}" != "0" ]; then
+        generate_sitemap "${KVH_DST}" "${KVH_SITEMAP}" "${KVH_SRC}"
+    fi
 else
     printf "Error: Source '%s' does not exist\n" "${KVH_SRC}" >&2
     exit 1

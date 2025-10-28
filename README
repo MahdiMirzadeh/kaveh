@@ -16,6 +16,7 @@ Features
 - Minified CSS output
 - SEO-friendly semantic HTML
 - RSS feed generation from .rss files
+- Automatic sitemap.xml generation
 
 Requirements
 ------------
@@ -33,11 +34,18 @@ Usage
 -----
     kaveh
     kaveh -i [INPUT] -o [OUTPUT]
+    kaveh -i [INPUT] -o [OUTPUT] -s [BASE_URL]
     kaveh -v
 
 If you don't specify directories, these are the defaults:
      [INPUT]  == $PWD/.src
     [OUTPUT]  == $PWD
+
+Options:
+    -i INPUT       Source directory or file (default: ./.src)
+    -o OUTPUT      Output directory (default: ./)
+    -s BASE_URL    Enable sitemap generation with base URL (e.g., https://example.com)
+    -v             Show version information
 
 Markdown Metadata
 -----------------
@@ -269,6 +277,33 @@ Examples:
     per_page: 5
     --->
     Lists GPG keys with file information
+
+Sitemap Generation
+------------------
+Kaveh can automatically generate a sitemap.xml file containing all HTML pages in your site.
+
+Enable sitemap generation by providing your site's base URL:
+
+    kaveh -i src -o out -s https://example.com
+
+This will:
+- Scan all .html files in the output directory
+- Generate a complete sitemap.xml in the root of your output
+- Include last modification dates for each page
+- Use proper XML escaping and formatting
+
+To disable sitemap generation:
+
+    kaveh -i src -o out -s 0
+
+Or simply omit the -s flag (disabled by default).
+
+You can also set the default base URL in the script:
+
+    KVH_SITEMAP="https://mysite.com"
+
+The sitemap follows the standard sitemap.org protocol and is ready for submission to
+search engines like Google, Bing, and others.
 
 RSS Feeds
 ---------
