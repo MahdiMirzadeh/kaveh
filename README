@@ -49,123 +49,223 @@ Add metadata at the top of your .md files using HTML comments:
 
 All fields are optional and will use defaults if not specified.
 
-List Pagination (kaveh exclusive)
+List Pagination
 ---------------
-Automatically generate paginated lists of markdown files:
+Automatically generate paginated lists of files using a clean YAML-like syntax:
 
-    <!---list:blog/*.md:10--->
+    <!---list
+    pattern: blog/*.md
+    per_page: 10
+    --->
 
 This creates a list of all files matching `blog/*.md`, showing 10 posts per page.
 
-### Syntax:
+Syntax:
 
-    <!---list:pattern--->
-    <!---list:pattern:per_page--->
-    <!---list:pattern:per_page:custom_dir--->
+    <!---list
+    pattern: <glob_pattern>
+    per_page: <number>          (optional, default: unlimited)
+    custom_dir: <dirname>       (optional, default: based on filename)
+    icon: <auto|true|false>     (optional, default: auto)
+    date: <auto|true|false>     (optional, default: auto)
+    display_next: <text>        (optional, default: "Next →")
+    display_prev: <text>        (optional, default: "← Previous")
+    --->
+
+Parameters:
+
+  pattern        Shell-style glob pattern to match files (required)
+  per_page       Number of items per page. Omit for unlimited (no pagination)
+  custom_dir     Custom directory name for pagination files
+  
+  icon           Control icon display:
+                 - auto (default): Show icons for non-markdown files only
+                 - true: Show icons for all files
+                 - false: Hide icons for all files
+  
+  date           Control date/time display:
+                 - auto (default): Show date for non-markdown files only
+                 - true: Show date for all files (including markdown)
+                 - false: Hide date for all files
+  
+  display_next   Custom text for "Next" pagination button
+  display_prev   Custom text for "Previous" pagination button
 
 Examples:
 
-    <!---list:blog/*.md--->
-    Shows all blog posts (no pagination)
-    
-    <!---list:blog/*.md:5--->
-    Shows 5 posts per page with pagination
-    
-    <!---list:blog/*.md:10:posts--->
-    Shows 10 posts per page in custom "posts/" directory
-    
-    <!---list:articles/tech/*.md:10--->
-    Shows posts from subdirectory, 10 per page
-    
-    <!---list:blog/2023-*.md:5--->
-    Shows only 2023 posts using glob patterns
-    
-    <!---list:downloads/*.pdf:10--->
-    Lists non-markdown files (PDFs, images, etc.)
+Basic list (no pagination):
 
-### Multiple Lists
+    <!---list
+    pattern: blog/*.md
+    --->
 
-You can have multiple lists in the same file. Each list gets its own ID:
+Paginated list:
+
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    --->
+
+Custom pagination directory:
+
+    <!---list
+    pattern: blog/*.md
+    per_page: 10
+    custom_dir: posts
+    --->
+
+Hide icons and dates for all files:
+
+    <!---list
+    pattern: downloads/*.pdf
+    per_page: 10
+    icon: false
+    date: false
+    --->
+
+Show icons and dates for all files (including markdown):
+
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    icon: true
+    date: true
+    --->
+
+Custom pagination button text:
+
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    display_next: "Older posts"
+    display_prev: "Newer posts"
+    --->
+
+Glob patterns:
+
+    <!---list
+    pattern: blog/2023-*.md
+    per_page: 5
+    --->
+    Matches files from 2023
+
+    <!---list
+    pattern: **/draft-*.md
+    per_page: 5
+    --->
+    Matches draft files in any subdirectory
+
+Non-markdown files:
+
+    <!---list
+    pattern: downloads/*.pdf
+    per_page: 10
+    --->
+    Lists PDF documents with sizes and dates
+
+Multiple Lists:
+
+You can have multiple lists in the same file. Each list gets its own ID.
+In your markdown file:
 
     # My Blog
     
     ## Latest Posts
-    <!---list:blog/*.md:2--->
+    <!---list
+    pattern: blog/*.md
+    per_page: 2
+    --->
     
     ## Tutorial Archive
-    <!---list:tutorials/*.md:5--->
+    <!---list
+    pattern: tutorials/*.md
+    per_page: 5
+    --->
 
 Pagination files are generated in dedicated directories:
-- Source: `blog-example.md`
-- Output: `blog-example.html` (main page)
-- Pagination: `blog-example/1_2.html`, `blog-example/2_1.html`, etc.
+  Source:       blog-example.md
+  Output:       blog-example.html (main page)
+  Pagination:   blog-example/1_2.html, blog-example/2_1.html, etc.
 
-You can specify custom directory names per list:
-- Directive: `<!---list:blog/*.md:5:posts--->`
-- Output: `posts/1_2.html`, `posts/2_1.html`, etc.
+Custom directory names per list:
+
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    custom_dir: posts
+    --->
+    
+  Output: posts/1_2.html, posts/2_1.html, etc.
 
 Each list can have its own custom directory:
 
     ## Latest Posts
-    <!---list:blog/*.md:5:posts--->
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    custom_dir: posts
+    --->
     
     ## Tutorials  
-    <!---list:tutorials/*.md:10:guides--->
+    <!---list
+    pattern: tutorials/*.md
+    per_page: 10
+    custom_dir: guides
+    --->
 
 This generates:
-- `posts/1_1.html`, `posts/1_2.html` (for blog posts)
-- `guides/2_1.html`, `guides/2_2.html` (for tutorials)
+  posts/1_1.html, posts/1_2.html (for blog posts)
+  guides/2_1.html, guides/2_2.html (for tutorials)
 
-Format: `{list_number}_{page_number}.html`
-- List 1, Page 2: `1_2.html`
-- List 2, Page 3: `2_3.html`
+Pagination filename format: {list_number}_{page_number}.html
+  List 1, Page 2: 1_2.html
+  List 2, Page 3: 2_3.html
 
-### Glob Patterns
+File Types:
 
-List patterns support shell-style globbing:
+Lists work with any file type, not just markdown.
 
-    <!---list:blog/202[3-4]-*.md:10--->
-    Matches files from 2023 and 2024
-    
-    <!---list:**/draft-*.md:5--->
-    Matches draft files in any subdirectory
-    
-    <!---list:posts/[a-m]*.md:10--->
-    Matches posts starting with letters a-m
-
-### File Types
-
-Lists work with any file type, not just markdown:
-
-- **Markdown files** (`.md`)
+Markdown files (.md):
   - Title: From metadata or generated from filename
   - Description: From metadata
   - Date: Extracted from filename (YYYY-MM-DD pattern)
-  - URL: Converts `.md` to `.html`
+  - URL: Converts .md to .html
 
-- **Other files** (`.pdf`, `.jpg`, `.zip`, `.gpg`, etc.)
+Other files (.pdf, .jpg, .zip, .gpg, etc.):
   - Title: Actual filename (with extension)
   - Description: File size with minimal file type icon
-  - Date: Last modified time (shown in `<time>` element)
+  - Date: Last modified time (shown in <time> element)
   - URL: Direct link to the file
 
 Non-markdown file listings show:
-- Minimal SVG icon representing file type (document, image, video, archive, etc.)
-- Human-readable file size with exact byte count (e.g., "2.3 MB (2,415,919 bytes)")
-- Last modified timestamp in `<time>` element
+  - Minimal SVG icon representing file type (document, image, video, archive, etc.)
+  - Human-readable file size with exact byte count (e.g., "2.3 MB (2,415,919 bytes)")
+  - Last modified timestamp in <time> element
 
 Examples:
 
-    <!---list:downloads/*.pdf:10--->
+    <!---list
+    pattern: downloads/*.pdf
+    per_page: 10
+    --->
     Lists PDF documents with sizes and dates
-    
-    <!---list:gallery/**/*.jpg:20--->
+
+    <!---list
+    pattern: gallery/**/*.jpg
+    per_page: 20
+    --->
     Lists images from all subdirectories
-    
-    <!---list:media/*.mp4:8--->
+
+    <!---list
+    pattern: media/*.mp4
+    per_page: 8
+    --->
     Lists video files with metadata
-    
-    <!---list:keys/*.gpg:5--->
+
+    <!---list
+    pattern: keys/*.gpg
+    per_page: 5
+    --->
     Lists GPG keys with file information
 
 Custom Heading IDs
@@ -220,7 +320,7 @@ Conflict Resolution
 -------------------
 Kaveh automatically avoids naming conflicts between generated and source files.
 
-### File Conflicts
+File Conflicts:
 
 If a source file has the same name as a generated HTML file:
 
@@ -232,9 +332,9 @@ Output:
     out/index.html     (copied from source)
     out/index_.html    (generated from index.md)
 
-If `index_.html` also exists in source, it becomes `index_2.html`, and so on.
+If index_.html also exists in source, it becomes index_2.html, and so on.
 
-### Directory Conflicts
+Directory Conflicts:
 
 Pagination directories follow the same pattern:
 
@@ -247,15 +347,20 @@ Output:
     out/blog-example/           (your directory, copied)
     out/blog-example_/          (pagination directory)
 
-If `blog-example_/` also conflicts, it becomes `blog-example_2/`, etc.
+If blog-example_/ also conflicts, it becomes blog-example_2/, etc.
 
 With custom directory names:
 
-    <!---list:blog/*.md:5:posts--->
+    <!---list
+    pattern: blog/*.md
+    per_page: 5
+    custom_dir: posts
+    --->
+
+Source:
     .src/posts/                 (your directory)
 
 Output:
-
     out/posts/                  (your directory, copied)
     out/posts_/                 (pagination directory)
 

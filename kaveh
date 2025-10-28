@@ -188,32 +188,70 @@ process_lists() {
     local input_file="$1"
     
     # Check if file contains list directive
-    if ! grep -q '<!---list:' "${input_file}" 2>/dev/null; then
+    if ! grep -q '<!---list' "${input_file}" 2>/dev/null; then
         cat "${input_file}"
         return
     fi
     
     # Process list directives
     awk -v src_dir="${KVH_SRC}" '
-        /<!---list:/ {
-            # Extract pattern and per_page
-            if (match($0, /<!---list:([^:]+):([0-9]+)--->/)) {
-                full = substr($0, RSTART, RLENGTH)
-                gsub(/<!---list:/, "", full)
-                gsub(/--->/,"", full)
-                split(full, parts, ":")
-                pattern = parts[1]
-                per_page = parts[2]
-            } else if (match($0, /<!---list:([^-]+)--->/)) {
-                full = substr($0, RSTART, RLENGTH)
-                gsub(/<!---list:/, "", full)
-                gsub(/--->/,"", full)
-                pattern = full
-                per_page = 999
+        /<!---list$/ {
+            # Multi-line YAML-like syntax
+            pattern = ""
+            per_page = 999
+            custom_dir = ""
+            icon = "auto"
+            date = "auto"
+            display_next = "Next →"
+            display_prev = "← Previous"
+            
+            # Read until closing --->
+            while (getline > 0) {
+                if ($0 ~ /^--->$/) break
+                
+                # Parse key: value pairs (spaces after colon are optional)
+                if (match($0, /^[[:space:]]*pattern:[[:space:]]*(.+)$/, arr)) {
+                    pattern = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", pattern)
+                }
+                else if (match($0, /^[[:space:]]*per_page:[[:space:]]*([0-9]+)$/, arr)) {
+                    per_page = arr[1]
+                }
+                else if (match($0, /^[[:space:]]*custom_dir:[[:space:]]*(.+)$/, arr)) {
+                    custom_dir = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", custom_dir)
+                }
+                else if (match($0, /^[[:space:]]*icon:[[:space:]]*(.+)$/, arr)) {
+                    icon = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", icon)
+                }
+                else if (match($0, /^[[:space:]]*date:[[:space:]]*(.+)$/, arr)) {
+                    date = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", date)
+                }
+                else if (match($0, /^[[:space:]]*display_next:[[:space:]]*(.+)$/, arr)) {
+                    display_next = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", display_next)
+                    # Remove quotes if present
+                    gsub(/^"|"$/, "", display_next)
+                    gsub(/^'\''|'\''$/, "", display_next)
+                }
+                else if (match($0, /^[[:space:]]*display_prev:[[:space:]]*(.+)$/, arr)) {
+                    display_prev = arr[1]
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", display_prev)
+                    # Remove quotes if present
+                    gsub(/^"|"$/, "", display_prev)
+                    gsub(/^'\''|'\''$/, "", display_prev)
+                }
             }
             
-            # Output placeholder for shell replacement
-            print "__KVHLIST__" pattern "__" per_page "__"
+            if (pattern != "") {
+                if (custom_dir != "") {
+                    print "__KVHLIST__" pattern "__" per_page "__1__0__" custom_dir "__" icon "__" date "__" display_next "__" display_prev "__"
+                } else {
+                    print "__KVHLIST__" pattern "__" per_page "__1__0____" icon "__" date "__" display_next "__" display_prev "__"
+                }
+            }
             next
         }
         { print }
@@ -221,7 +259,7 @@ process_lists() {
 }
 
 generate_post_list() {
-    # $1 = source directory, $2 = pattern, $3 = page number, $4 = per_page, $5 = current file, $6 = list_id, $7 = total lists, $8 = custom_dir
+    # $1 = source directory, $2 = pattern, $3 = page number, $4 = per_page, $5 = current file, $6 = list_id, $7 = total lists, $8 = custom_dir, $9 = icon, $10 = date, $11 = display_next, $12 = display_prev
     local src_dir="$1"
     local pattern="$2"
     local page="${3:-1}"
@@ -230,10 +268,21 @@ generate_post_list() {
     local list_id="${6:-1}"
     local total_lists="${7:-1}"
     local custom_dir="$8"
+    local icon="${9:-auto}"
+    local date_opt="${10:-auto}"
+    local display_next="${11:-Next →}"
+    local display_prev="${12:-← Previous}"
     
     # Get list of files sorted by date (newest first)
-    # Use -path to match full paths, not just filenames
-    local files=$(find "${src_dir}" -type f -path "*/${pattern}" 2>/dev/null | sort -r)
+    # Use -path to match full paths, or -name if pattern has no path component
+    local files
+    if echo "$pattern" | grep -q '/'; then
+        # Pattern has path component, use -path
+        files=$(find "${src_dir}" -type f -path "*/${pattern}" 2>/dev/null | sort -r)
+    else
+        # Pattern has no path (e.g., '*', '*.md'), use -name to match in src_dir root
+        files=$(find "${src_dir}" -maxdepth 1 -type f -name "${pattern}" 2>/dev/null | sort -r)
+    fi
     local total=$(echo "$files" | wc -l)
     
     [ -z "$files" ] && return
@@ -270,8 +319,15 @@ generate_post_list() {
             desc=$(getvalue "$file" "description")
             # Generate relative URL (convert .md to .html)
             url=$(echo "$file" | sed -e "s|^${src_dir}/||" -e 's/\.md$/.html/')
-            file_mtime_display=""
-            file_mtime_iso=""
+            
+            # Get file modification time for markdown files (when date: true)
+            file_mtime_iso=$(date -r "$file" "+%Y-%m-%dT%H:%M:%S%z" 2>/dev/null || true)
+            file_mtime_display=$(date -r "$file" "+%Y-%m-%d %H:%M" 2>/dev/null || true)
+            if [ -z "$file_mtime_display" ]; then
+                # Fallback using ls if date -r is unavailable
+                file_mtime_display=$(ls -ld "$file" 2>/dev/null | awk '{print $6 " " $7 " " $8}')
+                file_mtime_iso=""
+            fi
         else
             # Non-markdown file - use actual filename (with extension) as title
             title="$filename"
@@ -292,7 +348,14 @@ generate_post_list() {
             [ "$ext" = "$filename" ] && ext="" # No extension
             ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
             file_icon=$(get_file_icon "$ext_lower")
-            desc="${file_icon} ${size_human} (${size_bytes} bytes)"
+            
+            # Apply icon setting: auto=show for non-md, true=show for all, false=hide for all
+            if [ "$icon" = "false" ]; then
+                desc="${size_human} (${size_bytes} bytes)"
+            else
+                desc="${file_icon} ${size_human} (${size_bytes} bytes)"
+            fi
+            
             # Generate relative URL (use file as-is)
             url=$(echo "$file" | sed -e "s|^${src_dir}/||")
         fi
@@ -301,22 +364,46 @@ generate_post_list() {
         printf '<article class="post-entry">\n'
         printf '<h3><a href="/%s">%s</a></h3>\n' "$url" "$title"
         
-        if [ -n "$date" ]; then
-            printf '<time datetime="%s">%s</time>\n' "$date" "$date"
-        fi
-        
-        # For non-markdown files, include last modified time if available
-        if [ -n "$file_mtime_display" ]; then
-            # Prefer ISO datetime if available, else use display value for both
-            if [ -n "$file_mtime_iso" ]; then
-                printf '<time datetime="%s">%s</time>\n' "$file_mtime_iso" "$file_mtime_display"
-            else
-                printf '<time datetime="%s">%s</time>\n' "$file_mtime_display" "$file_mtime_display"
+        # Handle date display based on date_opt parameter
+        if [ "${file%.md}" != "$file" ]; then
+            # Markdown file
+            if [ "$date_opt" = "true" ]; then
+                # Show date: prefer filename date, fallback to file mtime
+                if [ -n "$date" ]; then
+                    printf '<time datetime="%s">%s</time>\n' "$date" "$date"
+                elif [ -n "$file_mtime_display" ]; then
+                    if [ -n "$file_mtime_iso" ]; then
+                        printf '<time datetime="%s">%s</time>\n' "$file_mtime_iso" "$file_mtime_display"
+                    else
+                        printf '<time datetime="%s">%s</time>\n' "$file_mtime_display" "$file_mtime_display"
+                    fi
+                fi
+            elif [ "$date_opt" = "auto" ]; then
+                # Auto: don't show date for markdown files (default behavior)
+                :
+            fi
+        else
+            # Non-markdown file: show file modification time
+            if [ "$date_opt" != "false" ] && [ -n "$file_mtime_display" ]; then
+                # Show for auto or true, hide for false
+                if [ -n "$file_mtime_iso" ]; then
+                    printf '<time datetime="%s">%s</time>\n' "$file_mtime_iso" "$file_mtime_display"
+                else
+                    printf '<time datetime="%s">%s</time>\n' "$file_mtime_display" "$file_mtime_display"
+                fi
             fi
         fi
         
+        # Handle description and icon display
         if [ -n "$desc" ]; then
-            printf '<p>%s</p>\n' "$desc"
+            # For markdown files with icon=true, prepend a document icon
+            if [ "${file%.md}" != "$file" ] && [ "$icon" = "true" ]; then
+                # Add document icon for markdown files
+                doc_icon='<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg>'
+                printf '<p>%s %s</p>\n' "$doc_icon" "$desc"
+            else
+                printf '<p>%s</p>\n' "$desc"
+            fi
         fi
         
         printf '</article>\n'
@@ -341,17 +428,17 @@ generate_post_list() {
         if [ $page -gt 1 ]; then
             if [ $page -eq 2 ]; then
                 # Link to first page
-                printf '<a href="/%s%d_1.html" class="prev">← Previous</a>\n' "$link_prefix" "$list_id"
+                printf '<a href="/%s%d_1.html" class="prev">%s</a>\n' "$link_prefix" "$list_id" "$display_prev"
             else
                 # Link to previous page
-                printf '<a href="/%s%d_%d.html" class="prev">← Previous</a>\n' "$link_prefix" "$list_id" $((page - 1))
+                printf '<a href="/%s%d_%d.html" class="prev">%s</a>\n' "$link_prefix" "$list_id" $((page - 1)) "$display_prev"
             fi
         fi
         
         printf '<span class="page-info">List %d - Page %d of %d</span>\n' "$list_id" "$page" "$total_pages"
         
         if [ $page -lt $total_pages ]; then
-            printf '<a href="/%s%d_%d.html" class="next">Next →</a>\n' "$link_prefix" "$list_id" $((page + 1))
+            printf '<a href="/%s%d_%d.html" class="next">%s</a>\n' "$link_prefix" "$list_id" $((page + 1)) "$display_next"
         fi
         
         printf '</nav>\n'
@@ -367,8 +454,8 @@ generate_paginated_directory() {
     local dst_dir="$2"
     local base_name="$3"
     
-    # Check if file has list directives
-    local list_count=$(grep -c '<!---list:' "$src_file" 2>/dev/null)
+    # Check if file has list directives (old or new syntax)
+    local list_count=$(grep -c '<!---list' "$src_file" 2>/dev/null)
     
     # If grep fails or returns non-numeric, set to 0
     [ -z "$list_count" ] && list_count=0
@@ -381,31 +468,22 @@ generate_paginated_directory() {
     
     # Parse all list directives to find which ones need pagination
     local list_directives="$(mktemp)"
-    grep '<!---list:' "$src_file" > "$list_directives"
+    # Extract list directives using AWK (YAML-like syntax)
+    awk '/<!---list$/{p="";pp=999;cd="";ic="auto";dt="auto";dn="Next →";dp="← Previous";while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*pattern:[[:space:]]*(.+)$/,a)){p=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",p)}else if(match($0,/^[[:space:]]*per_page:[[:space:]]*([0-9]+)$/,a)){pp=a[1]}else if(match($0,/^[[:space:]]*custom_dir:[[:space:]]*(.+)$/,a)){cd=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",cd)}else if(match($0,/^[[:space:]]*icon:[[:space:]]*(.+)$/,a)){ic=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",ic)}else if(match($0,/^[[:space:]]*date:[[:space:]]*(.+)$/,a)){dt=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dt)}else if(match($0,/^[[:space:]]*display_next:[[:space:]]*(.+)$/,a)){dn=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dn);gsub(/^"|"$/,"",dn);gsub(/^'\''|'\''$/,"",dn)}else if(match($0,/^[[:space:]]*display_prev:[[:space:]]*(.+)$/,a)){dp=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dp);gsub(/^"|"$/,"",dp);gsub(/^'\''|'\''$/,"",dp)}}if(p!="")print p"|"pp"|"cd"|"ic"|"dt"|"dn"|"dp}' "$src_file" > "$list_directives"
     
     # Check if any list needs pagination (has per_page specified and > files)
     local needs_pagination=0
     local list_num=1
     
-    while IFS= read -r list_line; do
-        local pattern per_page total_files list_custom_dir
-        
-        # Match pattern:per_page:custom_dir or pattern:per_page
-        if echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*:[^-]*---'; then
-            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\1/')
-            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\2/')
-            list_custom_dir=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\3/')
-        elif echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*---'; then
-            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\1/')
-            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\2/')
-            list_custom_dir=""
-        else
-            list_num=$((list_num + 1))
-            continue
-        fi
+    while IFS='|' read -r pattern per_page list_custom_dir icon date_opt display_next display_prev; do
+        local total_files
         
         # Count total matching files
-        total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        if echo "$pattern" | grep -q '/'; then
+            total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        else
+            total_files=$(find "${KVH_SRC}" -maxdepth 1 -type f -name "${pattern}" 2>/dev/null | wc -l)
+        fi
         
         if [ "$total_files" -gt "$per_page" ]; then
             needs_pagination=1
@@ -424,35 +502,24 @@ generate_paginated_directory() {
     
     # Collect information about ALL lists (to preserve list IDs)
     local list_id=1
-    grep '<!---list:' "$src_file" | while IFS= read -r list_line; do
-        local pattern per_page total_files total_pages list_custom_dir
-        
-        # Match pattern:per_page:custom_dir or pattern:per_page
-        if echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*:[^-]*---'; then
-            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\1/')
-            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\2/')
-            list_custom_dir=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\):\([^-]*\)--->/\3/')
-        elif echo "$list_line" | grep -q '<!---list:[^:]*:[0-9]*---'; then
-            pattern=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\1/')
-            per_page=$(echo "$list_line" | sed 's/<!---list:\([^:]*\):\([0-9]*\)--->/\2/')
-            list_custom_dir=""
-        else
-            # Increment list_id for ALL lists, not just those with pagination
-            list_id=$((list_id + 1))
-            continue
-        fi
+    awk '/<!---list$/{p="";pp=999;cd="";ic="auto";dt="auto";dn="Next →";dp="← Previous";while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*pattern:[[:space:]]*(.+)$/,a)){p=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",p)}else if(match($0,/^[[:space:]]*per_page:[[:space:]]*([0-9]+)$/,a)){pp=a[1]}else if(match($0,/^[[:space:]]*custom_dir:[[:space:]]*(.+)$/,a)){cd=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",cd)}else if(match($0,/^[[:space:]]*icon:[[:space:]]*(.+)$/,a)){ic=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",ic)}else if(match($0,/^[[:space:]]*date:[[:space:]]*(.+)$/,a)){dt=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dt)}else if(match($0,/^[[:space:]]*display_next:[[:space:]]*(.+)$/,a)){dn=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dn);gsub(/^"|"$/,"",dn);gsub(/^'\''|'\''$/,"",dn)}else if(match($0,/^[[:space:]]*display_prev:[[:space:]]*(.+)$/,a)){dp=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",dp);gsub(/^"|"$/,"",dp);gsub(/^'\''|'\''$/,"",dp)}}if(p!="")print p"|"pp"|"cd"|"ic"|"dt"|"dn"|"dp}' "$src_file" | while IFS='|' read -r pattern per_page list_custom_dir icon date_opt display_next display_prev; do
+        local total_files total_pages
         
         # Count total matching files
-        total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        if echo "$pattern" | grep -q '/'; then
+            total_files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" 2>/dev/null | wc -l)
+        else
+            total_files=$(find "${KVH_SRC}" -maxdepth 1 -type f -name "${pattern}" 2>/dev/null | wc -l)
+        fi
         
         if [ "$total_files" -gt 0 ]; then
             # Calculate number of pages needed
             total_pages=$(( ($total_files + $per_page - 1) / $per_page ))
             
-            # Store: list_id|pattern|per_page|total_pages|custom_dir
+            # Store: list_id|pattern|per_page|total_pages|custom_dir|icon|date|display_next|display_prev
             # Only store if pagination is needed (total_pages > 1)
             if [ "$total_pages" -gt 1 ]; then
-                echo "${list_id}|${pattern}|${per_page}|${total_pages}|${list_custom_dir}"
+                echo "${list_id}|${pattern}|${per_page}|${total_pages}|${list_custom_dir}|${icon}|${date_opt}|${display_next}|${display_prev}"
             fi
         fi
         # Increment list_id for ALL lists, not just those with pagination
@@ -460,7 +527,7 @@ generate_paginated_directory() {
     done > "$list_info"
     
     # Generate all combinations of list pages
-    while IFS='|' read -r lid pattern per_page total_pages list_custom_dir; do
+    while IFS='|' read -r lid pattern per_page total_pages list_custom_dir icon date_opt display_next display_prev; do
         # Determine pagination directory for THIS specific list
         local pagination_dirname=$(get_pagination_dirname "$src_file" "$base_name" "$list_custom_dir")
         local pagination_dir="${dst_dir}/${pagination_dirname}"
@@ -472,48 +539,66 @@ generate_paginated_directory() {
             local temp_md="$(mktemp)"
             local list_counter=1
             
-            # Replace list directives with page-specific versions
+            # Replace list directives with page-specific versions (convert YAML to internal format with all params)
             awk -v target_list="$lid" -v target_page="$page" -v list_count="$list_count" '
                 BEGIN { current_list = 0 }
-                /<!---list:/ {
+                /<!---list$/ {
                     current_list++
-                    line = $0
+                    p="";pp=999;cd="";ic="auto";dt="auto";dn="Next →";dp="← Previous"
                     
-                    # Extract pattern, per_page, and optional custom_dir
-                    if (match(line, /<!---list:([^:]+):([0-9]+):([^-]+)--->/)) {
-                        full = substr(line, RSTART, RLENGTH)
-                        gsub(/<!---list:/, "", full)
-                        gsub(/--->/,"", full)
-                        split(full, parts, ":")
-                        pattern = parts[1]
-                        per_page = parts[2]
-                        custom_dir = parts[3]
-                        
+                    # Read until closing --->
+                    while (getline > 0) {
+                        if ($0 ~ /^--->$/) break
+                        if (match($0, /^[[:space:]]*pattern:[[:space:]]*(.+)$/, a)) {
+                            p = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+                        }
+                        else if (match($0, /^[[:space:]]*per_page:[[:space:]]*([0-9]+)$/, a)) {
+                            pp = a[1]
+                        }
+                        else if (match($0, /^[[:space:]]*custom_dir:[[:space:]]*(.+)$/, a)) {
+                            cd = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", cd)
+                        }
+                        else if (match($0, /^[[:space:]]*icon:[[:space:]]*(.+)$/, a)) {
+                            ic = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", ic)
+                        }
+                        else if (match($0, /^[[:space:]]*date:[[:space:]]*(.+)$/, a)) {
+                            dt = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", dt)
+                        }
+                        else if (match($0, /^[[:space:]]*display_next:[[:space:]]*(.+)$/, a)) {
+                            dn = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", dn)
+                            gsub(/^"|"$/, "", dn)
+                            gsub(/^'\''|'\''$/, "", dn)
+                        }
+                        else if (match($0, /^[[:space:]]*display_prev:[[:space:]]*(.+)$/, a)) {
+                            dp = a[1]
+                            gsub(/^[[:space:]]+|[[:space:]]+$/, "", dp)
+                            gsub(/^"|"$/, "", dp)
+                            gsub(/^'\''|'\''$/, "", dp)
+                        }
+                    }
+                    
+                    # Output internal format (9 fields) that process_blog_lists understands
+                    if (p != "") {
                         if (current_list == target_list) {
                             # This is the list we want to paginate
-                            print "<!---list:" pattern ":" per_page ":" target_page ":" current_list ":" custom_dir "--->"
+                            if (cd != "") {
+                                print "<!---list:" p ":" pp ":" target_page ":" current_list ":" cd ":" ic ":" dt ":" dn ":" dp "--->"
+                            } else {
+                                print "<!---list:" p ":" pp ":" target_page ":" current_list "::" ic ":" dt ":" dn ":" dp "--->"
+                            }
                         } else {
                             # Other lists show page 1
-                            print "<!---list:" pattern ":" per_page ":1:" current_list ":" custom_dir "--->"
+                            if (cd != "") {
+                                print "<!---list:" p ":" pp ":1:" current_list ":" cd ":" ic ":" dt ":" dn ":" dp "--->"
+                            } else {
+                                print "<!---list:" p ":" pp ":1:" current_list "::" ic ":" dt ":" dn ":" dp "--->"
+                            }
                         }
-                    } else if (match(line, /<!---list:([^:]+):([0-9]+)--->/)) {
-                        full = substr(line, RSTART, RLENGTH)
-                        gsub(/<!---list:/, "", full)
-                        gsub(/--->/,"", full)
-                        split(full, parts, ":")
-                        pattern = parts[1]
-                        per_page = parts[2]
-                        
-                        if (current_list == target_list) {
-                            # This is the list we want to paginate
-                            print "<!---list:" pattern ":" per_page ":" target_page ":" current_list "--->"
-                        } else {
-                            # Other lists show page 1
-                            print "<!---list:" pattern ":" per_page ":1:" current_list "--->"
-                        }
-                    } else {
-                        # No pagination - pass through
-                        print line
                     }
                     next
                 }
@@ -578,7 +663,7 @@ process_blog_lists() {
     
     # Count total list directives if not provided
     if [ "$current_list_id" -eq 0 ]; then
-        total_lists=$(grep -c '<!---list:' "$input" 2>/dev/null)
+        total_lists=$(grep -c '<!---list' "$input" 2>/dev/null)
         [ -z "$total_lists" ] && total_lists=0
         case "$total_lists" in
             ''|*[!0-9]*) total_lists=0 ;;
@@ -586,67 +671,67 @@ process_blog_lists() {
         [ "$total_lists" -eq 0 ] && total_lists=1
     fi
     
-    awk '/<!---list:/ {
+    # Convert list directives to __KVHLIST__ placeholders (handles both YAML and internal formats)
+    awk '/<!---list$/ {
+        # YAML format
+        p="";pp=999;cd="";ic="auto";dt="auto";dn="Next →";dp="← Previous"
+        while (getline > 0) {
+            if ($0 ~ /^--->$/) break
+            if (match($0, /^[[:space:]]*pattern:[[:space:]]*(.+)$/, arr)) {
+                p = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", p)
+            }
+            else if (match($0, /^[[:space:]]*per_page:[[:space:]]*([0-9]+)$/, arr)) {
+                pp = arr[1]
+            }
+            else if (match($0, /^[[:space:]]*custom_dir:[[:space:]]*(.+)$/, arr)) {
+                cd = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", cd)
+            }
+            else if (match($0, /^[[:space:]]*icon:[[:space:]]*(.+)$/, arr)) {
+                ic = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", ic)
+            }
+            else if (match($0, /^[[:space:]]*date:[[:space:]]*(.+)$/, arr)) {
+                dt = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", dt)
+            }
+            else if (match($0, /^[[:space:]]*display_next:[[:space:]]*(.+)$/, arr)) {
+                dn = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", dn)
+                gsub(/^"|"$/, "", dn)
+                gsub(/^'\''|'\''$/, "", dn)
+            }
+            else if (match($0, /^[[:space:]]*display_prev:[[:space:]]*(.+)$/, arr)) {
+                dp = arr[1]
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", dp)
+                gsub(/^"|"$/, "", dp)
+                gsub(/^'\''|'\''$/, "", dp)
+            }
+        }
+        if (p != "") {
+            if (cd != "") {
+                print "__KVHLIST__" p "__" pp "__1__0__" cd "__" ic "__" dt "__" dn "__" dp "__"
+            } else {
+                print "__KVHLIST__" p "__" pp "__1__0____" ic "__" dt "__" dn "__" dp "__"
+            }
+        }
+        next
+    }
+    /<!---list:/ {
+        # Internal colon format (from pagination) - now with 9 fields: pattern:per_page:page:list_id:custom_dir:icon:date:display_next:display_prev
         line = $0
-        if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+):([^-]+)--->/)) {
-            # Pattern:per_page:page:list_id:custom_dir
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            split(full_match, parts, ":")
-            pattern = parts[1]
-            per_page = parts[2]
-            page_num = parts[3]
-            list_id = parts[4]
-            custom_dir = parts[5]
-            print "__KVHLIST__" pattern "__" per_page "__" page_num "__" list_id "__" custom_dir "__"
+        if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+):([^:]*):([^:]*):([^:]*):([^:]*):([^-]+)--->/)) {
+            split(substr(line, RSTART+10, RLENGTH-14), parts, ":")
+            print "__KVHLIST__" parts[1] "__" parts[2] "__" parts[3] "__" parts[4] "__" parts[5] "__" parts[6] "__" parts[7] "__" parts[8] "__" parts[9] "__"
         } else if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+)--->/)) {
-            # Pattern:per_page:page:list_id
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            split(full_match, parts, ":")
-            pattern = parts[1]
-            per_page = parts[2]
-            page_num = parts[3]
-            list_id = parts[4]
-            print "__KVHLIST__" pattern "__" per_page "__" page_num "__" list_id "____"
-        } else if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+)--->/)) {
-            # Pattern:per_page:page (list_id will be auto-assigned)
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            split(full_match, parts, ":")
-            pattern = parts[1]
-            per_page = parts[2]
-            page_num = parts[3]
-            print "__KVHLIST__" pattern "__" per_page "__" page_num "__0____"
-        } else if (match(line, /<!---list:([^:]+):([0-9]+):([^-]+)--->/)) {
-            # Pattern:per_page:custom_dir (page defaults to 1, list_id auto-assigned)
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            split(full_match, parts, ":")
-            pattern = parts[1]
-            per_page = parts[2]
-            custom_dir = parts[3]
-            print "__KVHLIST__" pattern "__" per_page "__1__0__" custom_dir "__"
-        } else if (match(line, /<!---list:([^:]+):([0-9]+)--->/)) {
-            # Pattern:per_page (page defaults to 1, list_id auto-assigned)
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            split(full_match, parts, ":")
-            pattern = parts[1]
-            per_page = parts[2]
-            print "__KVHLIST__" pattern "__" per_page "__1__0____"
-        } else if (match(line, /<!---list:([^>-]+)--->/)) {
-            # Just pattern (no pagination, list_id auto-assigned)
-            full_match = substr(line, RSTART, RLENGTH)
-            gsub(/<!---list:/, "", full_match)
-            gsub(/--->/,"", full_match)
-            pattern = full_match
-            print "__KVHLIST__" pattern "__999__1__0____"
+            # Legacy format without extra params - use defaults
+            split(substr(line, RSTART+10, RLENGTH-14), parts, ":")
+            print "__KVHLIST__" parts[1] "__" parts[2] "__" parts[3] "__" parts[4] "____auto__auto__Next →__← Previous__"
+        } else if (match(line, /<!---list:([^:]+):([0-9]+):([0-9]+):([0-9]+):([^-]+)--->/)) {
+            # Legacy format with custom_dir but no extra params
+            split(substr(line, RSTART+10, RLENGTH-14), parts, ":")
+            print "__KVHLIST__" parts[1] "__" parts[2] "__" parts[3] "__" parts[4] "__" parts[5] "__auto__auto__Next →__← Previous__"
         }
         next
     }
@@ -656,11 +741,16 @@ process_blog_lists() {
     local auto_list_id=1
     while IFS= read -r line; do
         if echo "$line" | grep -q '^__KVHLIST__'; then
-            pattern=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\1/')
-            per_page=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\2/')
-            page_num=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\3/')
-            list_id=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\4/')
-            list_custom_dir=$(echo "$line" | sed 's/__KVHLIST__\(.*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\(.*\)__/\5/')
+            # Parse the extended format with 9 fields
+            pattern=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\1/')
+            per_page=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\2/')
+            page_num=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\3/')
+            list_id=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\4/')
+            list_custom_dir=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\5/')
+            icon=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\6/')
+            date_opt=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\7/')
+            display_next=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\8/')
+            display_prev=$(echo "$line" | sed 's/__KVHLIST__\([^_]*\)__\([0-9]*\)__\([0-9]*\)__\([0-9]*\)__\([^_]*\)__\([^_]*\)__\([^_]*\)__\(.*\)__\(.*\)__/\9/')
             
             # Use provided list_id if specified (non-zero), otherwise auto-assign
             if [ "$current_list_id" -gt 0 ]; then
@@ -671,7 +761,7 @@ process_blog_lists() {
             fi
             
             # Use the list-specific custom_dir from the directive
-            generate_post_list "${KVH_SRC}" "$pattern" "$page_num" "$per_page" "$current_file" "$list_id" "$total_lists" "$list_custom_dir"
+            generate_post_list "${KVH_SRC}" "$pattern" "$page_num" "$per_page" "$current_file" "$list_id" "$total_lists" "$list_custom_dir" "$icon" "$date_opt" "$display_next" "$display_prev"
         else
             echo "$line"
         fi
