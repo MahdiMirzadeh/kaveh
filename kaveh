@@ -293,8 +293,8 @@ generate_post_list() {
     local end=$(( $page * $per_page ))
     [ $end -gt $total ] && end=$total
     
-    # Start output
-    printf '<div class="post-list">\n'
+    # Start output with short, collision-resistant ID (§l = list)
+    printf '<div class="post-list" id="§l%d">\n' "$list_id"
     
     # Process files using awk to handle line numbers
     echo "$files" | awk -v start="$start" -v end="$end" -v src_dir="$src_dir" '
@@ -428,17 +428,17 @@ generate_post_list() {
         if [ $page -gt 1 ]; then
             if [ $page -eq 2 ]; then
                 # Link to first page
-                printf '<a href="/%s%d_1.html" class="prev">%s</a>\n' "$link_prefix" "$list_id" "$display_prev"
+                printf '<a href="/%s%d_1.html#§l%d" class="prev">%s</a>\n' "$link_prefix" "$list_id" "$list_id" "$display_prev"
             else
                 # Link to previous page
-                printf '<a href="/%s%d_%d.html" class="prev">%s</a>\n' "$link_prefix" "$list_id" $((page - 1)) "$display_prev"
+                printf '<a href="/%s%d_%d.html#§l%d" class="prev">%s</a>\n' "$link_prefix" "$list_id" $((page - 1)) "$list_id" "$display_prev"
             fi
         fi
         
         printf '<span class="page-info">List %d - Page %d of %d</span>\n' "$list_id" "$page" "$total_pages"
         
         if [ $page -lt $total_pages ]; then
-            printf '<a href="/%s%d_%d.html" class="next">%s</a>\n' "$link_prefix" "$list_id" $((page + 1)) "$display_next"
+            printf '<a href="/%s%d_%d.html#§l%d" class="next">%s</a>\n' "$link_prefix" "$list_id" $((page + 1)) "$list_id" "$display_next"
         fi
         
         printf '</nav>\n'
@@ -771,8 +771,24 @@ process_blog_lists() {
 }
 
 md2html() {
+    # Pre-scan to extract all footnote numbers and reserve their IDs
+    local reserved_ids=""
+    reserved_ids=$(grep -o '\[\^[0-9]\+\]' "$1" 2>/dev/null | sed 's/\[\^\([0-9]\+\)\]/fn\1 fnref\1 /g' | tr ' ' '\n' | sort -u | tr '\n' ' ')
+    
+    # Count list directives and reserve list IDs
+    local list_count=$(process_lists "$1" | grep -c '^__KVHLIST__' 2>/dev/null)
+    # Handle empty/error case
+    case "$list_count" in
+        ''|*[!0-9]*) list_count=0 ;;
+    esac
+    local i=1
+    while [ "$i" -le "$list_count" ]; do
+        reserved_ids="${reserved_ids}§l${i} "
+        i=$((i + 1))
+    done
+    
     # Remove KVH metadata comments and parse markdown to HTML using pure POSIX shell
-    sed -e '/<!---/,/--->/d' -e '/<!---/,/-->/{/^[[:space:]]*$/d;}' "$1" | awk '
+    sed -e '/<!---/,/--->/d' -e '/<!---/,/-->/{/^[[:space:]]*$/d;}' "$1" | awk -v reserved_ids="${reserved_ids}" '
     BEGIN {
         in_code_block = 0
         in_html_block = 0
@@ -794,6 +810,14 @@ md2html() {
             heading_ids[i] = ""
         }
         heading_id_count = 0
+        # Load reserved IDs (footnotes, lists) passed from shell
+        split(reserved_ids, reserved_array, " ")
+        for (i in reserved_array) {
+            if (reserved_array[i] != "") {
+                heading_ids[heading_id_count] = reserved_array[i]
+                heading_id_count++
+            }
+        }
     }
 
     function escape_html(text) {
@@ -1116,7 +1140,7 @@ md2html() {
             # Check for duplicate IDs and append number if needed
             if (custom_id != "") {
                 base_id = custom_id
-                id_suffix = 1
+                id_suffix = 2
                 is_duplicate = 0
                 
                 # Check if ID already exists
@@ -1129,8 +1153,8 @@ md2html() {
                 
                 # Keep incrementing suffix until we find unique ID
                 while (is_duplicate) {
-                    id_suffix++
                     custom_id = base_id "-" id_suffix
+                    id_suffix++
                     is_duplicate = 0
                     for (j = 0; j < heading_id_count; j++) {
                         if (heading_ids[j] == custom_id) {
