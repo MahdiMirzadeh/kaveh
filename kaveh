@@ -1611,6 +1611,124 @@ cleanup_hf_map() {
     [ -n "$KVH_HF_CACHE_DIR" ] && [ -d "$KVH_HF_CACHE_DIR" ] && rm -rf "$KVH_HF_CACHE_DIR"
 }
 
+escape_xml() {
+    # Escape XML special characters
+    # $1 = text to escape
+    local text="$1"
+    text=$(printf '%s' "$text" | sed 's/&/\&amp;/g')
+    text=$(printf '%s' "$text" | sed 's/</\&lt;/g')
+    text=$(printf '%s' "$text" | sed 's/>/\&gt;/g')
+    text=$(printf '%s' "$text" | sed 's/"/\&quot;/g')
+    printf '%s' "$text"
+}
+
+date_to_rfc822() {
+    # Convert YYYY-MM-DD or ISO 8601 date to RFC 822 format
+    # $1 = date string
+    local date_str="$1"
+    
+    # If it's YYYY-MM-DD format, convert to RFC 822
+    if echo "$date_str" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
+        # Try using date command with -d flag (GNU date)
+        rfc_date=$(date -d "$date_str" "+%a, %d %b %Y %H:%M:%S %z" 2>/dev/null)
+        if [ -n "$rfc_date" ]; then
+            printf '%s' "$rfc_date"
+        else
+            # Fallback: return original date
+            printf '%s' "$date_str"
+        fi
+    else
+        printf '%s' "$date_str"
+    fi
+}
+
+generate_rss() {
+    # Generate RSS feed from .rss file
+    # $1 = source .rss file
+    # $2 = output .xml file
+    local rss_file="$1"
+    local xml_file="$2"
+    
+    # Extract RSS directives
+    local pattern feed_title feed_desc feed_url limit
+    pattern=$(awk '/<!---rss$/{p="";while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*pattern:[[:space:]]*(.+)$/,a)){p=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",p)}}print p}' "$rss_file")
+    feed_title=$(awk '/<!---rss$/{while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*feed_title:[[:space:]]*(.+)$/,a)){t=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",t);print t;exit}}}' "$rss_file")
+    feed_desc=$(awk '/<!---rss$/{while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*feed_description:[[:space:]]*(.+)$/,a)){d=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",d);print d;exit}}}' "$rss_file")
+    feed_url=$(awk '/<!---rss$/{while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*feed_url:[[:space:]]*(.+)$/,a)){u=a[1];gsub(/^[[:space:]]+|[[:space:]]+$/,"",u);print u;exit}}}' "$rss_file")
+    limit=$(awk '/<!---rss$/{l=20;while(getline>0){if($0~/^--->$/)break;if(match($0,/^[[:space:]]*limit:[[:space:]]*([0-9]+)$/,a)){l=a[1]}}print l}' "$rss_file")
+    
+    # Set defaults if not provided
+    [ -z "$feed_title" ] && feed_title="${KVH_PAGE_NAME}"
+    [ -z "$feed_desc" ] && feed_desc="${KVH_PAGE_DESC}"
+    [ -z "$feed_url" ] && feed_url="https://example.com"
+    [ -z "$limit" ] && limit=20
+    [ -z "$pattern" ] && return
+    
+    # Get files matching pattern, sorted by date (newest first)
+    local files
+    if echo "$pattern" | grep -q '/'; then
+        files=$(find "${KVH_SRC}" -type f -path "*/${pattern}" \
+                ! -name "${KVH_HDR_FILE}" ! -name "${KVH_FTR_FILE}" 2>/dev/null | sort -r | head -n "$limit")
+    else
+        files=$(find "${KVH_SRC}" -maxdepth 1 -type f -name "${pattern}" \
+                ! -name "${KVH_HDR_FILE}" ! -name "${KVH_FTR_FILE}" 2>/dev/null | sort -r | head -n "$limit")
+    fi
+    
+    [ -z "$files" ] && return
+    
+    # Build RSS XML
+    {
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+        printf '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">\n'
+        printf '<channel>\n'
+        printf '<title>%s</title>\n' "$(escape_xml "$feed_title")"
+        printf '<link>%s</link>\n' "$(escape_xml "$feed_url")"
+        printf '<description>%s</description>\n' "$(escape_xml "$feed_desc")"
+        printf '<lastBuildDate>%s</lastBuildDate>\n' "$(date "+%a, %d %b %Y %H:%M:%S %z")"
+        printf '<language>en-us</language>\n'
+        
+        # Add items
+        echo "$files" | while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            
+            # Get filename
+            filename=$(basename "$file")
+            
+            # Extract date from filename (YYYY-MM-DD pattern)
+            pub_date=$(echo "$filename" | grep -o '[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}')
+            [ -z "$pub_date" ] && pub_date=$(date -r "$file" "+%Y-%m-%d" 2>/dev/null || true)
+            
+            # Convert to RFC 822
+            rfc_date=$(date_to_rfc822 "$pub_date")
+            
+            # Get title and description from metadata
+            item_title=$(getvalue "$file" "title")
+            if [ -z "$item_title" ]; then
+                item_title=$(echo "$filename" | sed -e 's/\.md$//' -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/-/ /g')
+                item_title=$(echo "$item_title" | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
+            fi
+            
+            item_desc=$(getvalue "$file" "description")
+            [ -z "$item_desc" ] && item_desc=""
+            
+            # Generate relative URL
+            item_url=$(echo "$file" | sed -e "s|^${KVH_SRC}/||" -e 's/\.md$/.html/')
+            full_url="${feed_url%/}/${item_url#./}"
+            
+            printf '<item>\n'
+            printf '<title>%s</title>\n' "$(escape_xml "$item_title")"
+            printf '<link>%s</link>\n' "$(escape_xml "$full_url")"
+            [ -n "$item_desc" ] && printf '<description>%s</description>\n' "$(escape_xml "$item_desc")"
+            [ -n "$rfc_date" ] && printf '<pubDate>%s</pubDate>\n' "$(escape_xml "$rfc_date")"
+            printf '<guid isPermaLink="false">%s</guid>\n' "$(escape_xml "$full_url")"
+            printf '</item>\n'
+        done
+        
+        printf '</channel>\n'
+        printf '</rss>\n'
+    } > "$xml_file"
+}
+
 # Check if source is a file or directory
 if [ -f "${KVH_SRC}" ]; then
     # Single file mode
@@ -1745,6 +1863,19 @@ elif [ -d "${KVH_SRC}" ]; then
     done
     
     cleanup_hf_map
+    
+    # Process .rss files and generate .xml feeds
+    find "${KVH_SRC}" -type f -name "*.rss" | while read -r RSS_FILE; do
+        RSS_NAME="${RSS_FILE##$KVH_SRC/}"
+        RSS_DIR="$(dirname "${RSS_NAME}")"
+        RSS_BASE="$(basename "${RSS_NAME}" .rss)"
+        
+        # Ensure output directory exists
+        [ "$RSS_DIR" = "." ] || mkdir -p "${KVH_DST}/${RSS_DIR}"
+        
+        # Generate RSS feed
+        generate_rss "${RSS_FILE}" "${KVH_DST}/${RSS_DIR:+${RSS_DIR}/}${RSS_BASE}.xml"
+    done
 
     # Copy directories (including empty ones) to destination
     find "${KVH_SRC}" -type d | while read -r DIR; do
