@@ -33,6 +33,28 @@ while getopts :vi:o: flag; do
     esac
 done
 
+# Convert paths to absolute to ensure proper relative path handling
+if [ -d "${KVH_SRC}" ] || [ -f "${KVH_SRC}" ]; then
+    # Source exists, get its absolute path
+    KVH_SRC=$(cd "$(dirname "${KVH_SRC}")" 2>/dev/null && pwd)/$(basename "${KVH_SRC}")
+fi
+
+# Ensure destination is absolute path
+if [ -d "${KVH_DST}" ]; then
+    # Destination directory exists, get its absolute path
+    KVH_DST=$(cd "${KVH_DST}" 2>/dev/null && pwd)
+else
+    # Destination doesn't exist, resolve parent and append basename
+    DST_PARENT=$(dirname "${KVH_DST}")
+    DST_BASE=$(basename "${KVH_DST}")
+    if [ -d "${DST_PARENT}" ]; then
+        KVH_DST=$(cd "${DST_PARENT}" 2>/dev/null && pwd)/${DST_BASE}
+    else
+        # Parent doesn't exist either, create it or use relative path as-is
+        mkdir -p "${DST_PARENT}" 2>/dev/null && KVH_DST=$(cd "${DST_PARENT}" 2>/dev/null && pwd)/${DST_BASE}
+    fi
+fi
+
 getvalue() {
     awk -v key="$2" '
         /<!---/,/--->/{
@@ -1599,14 +1621,19 @@ elif [ -d "${KVH_SRC}" ]; then
     done
 
     # Copy directories (including empty ones) to destination
-    find "${KVH_SRC}" -type d | while read DIR; do
-        DIR_NAME="${DIR##$KVH_SRC/}"
-        [ -n "${DIR_NAME}" ] && mkdir -p "${KVH_DST}/${DIR_NAME}"
+    find "${KVH_SRC}" -type d | while read -r DIR; do
+        # Skip the root source directory itself
+        [ "$DIR" = "$KVH_SRC" ] && continue
+        # Compute path relative to KVH_SRC (handle with/without trailing slash)
+        DIR_NAME="${DIR#$KVH_SRC}"
+        DIR_NAME="${DIR_NAME#/}"
+        [ -n "$DIR_NAME" ] && mkdir -p "${KVH_DST}/${DIR_NAME}"
     done
     
     # Copy non-markdown files/assets to destination
-    find "${KVH_SRC}" -type f ! -name "*.md" | while read FILE; do
-        FILE_NAME="${FILE##$KVH_SRC/}"
+    find "${KVH_SRC}" -type f ! -name "*.md" | while read -r FILE; do
+        FILE_NAME="${FILE#$KVH_SRC}"
+        FILE_NAME="${FILE_NAME#/}"
         FILE_DIR="$(dirname "${FILE_NAME}")"
         [ -d "${KVH_DST}/${FILE_DIR}" ] || mkdir -p "${KVH_DST}/${FILE_DIR}"
         cp "${FILE}" "${KVH_DST}/${FILE_NAME}"
