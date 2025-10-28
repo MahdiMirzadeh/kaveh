@@ -129,6 +129,59 @@ get_pagination_dirname() {
     echo "${desired_name}${suffix}${suffix_num}"
 }
 
+get_file_icon() {
+    # Get minimal SVG icon based on file extension/type
+    # $1 = file extension (lowercase)
+    local ext="$1"
+    
+    # Map extensions to icon types
+    case "$ext" in
+        # Images
+        jpg|jpeg|png|gif|svg|webp|bmp|ico)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1.75 2.5a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h.94a.76.76 0 0 1 .03-.03l6.077-6.078a1.75 1.75 0 0 1 2.412-.06L14.5 10.31V2.75a.25.25 0 0 0-.25-.25Zm12.5 11H4.81l5.048-5.047a.25.25 0 0 1 .344-.009l4.298 3.889v.917a.25.25 0 0 1-.25.25ZM1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25V2.75A1.75 1.75 0 0 0 14.25 1ZM5.5 6a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0ZM7 6a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z"></path></svg>'
+        ;;
+        # Videos
+        mp4|webm|mkv|avi|mov|wmv|flv|m4v)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1.75 2.5A1.75 1.75 0 0 0 0 4.25v7.5C0 12.99.784 14 1.75 14h12.5A1.75 1.75 0 0 0 16 12.25v-7.5A1.75 1.75 0 0 0 14.25 2.5ZM1.5 4.25a.25.25 0 0 1 .25-.25h12.5a.25.25 0 0 1 .25.25v7.5a.25.25 0 0 1-.25.25H1.75a.25.25 0 0 1-.25-.25ZM6 10.75a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75Zm4.75.75a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5Z"></path></svg>'
+        ;;
+        # Audio
+        mp3|wav|ogg|flac|aac|m4a|wma)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M11.5 1.429v13.142a1.429 1.429 0 0 1-2.571 0V1.429a1.429 1.429 0 0 1 2.571 0Zm-4 2.857v10.285a1.429 1.429 0 0 1-2.571 0V4.286a1.429 1.429 0 0 1 2.571 0Z"></path></svg>'
+        ;;
+        # Archives
+        zip|tar|gz|bz2|xz|7z|rar|tgz)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.75 0h2.5v2h-2.5Zm2.5 2v2h-2.5V2ZM6.75 4h2.5v2h-2.5Zm0 4h2.5v2h-2.5Zm-1.5 1.5v-1h1v1a.75.75 0 0 1-1.5 0Zm-2.5-6A1.75 1.75 0 0 0 1 5.25v8.5C1 14.99 1.784 16 2.75 16h10.5A1.75 1.75 0 0 0 15 14.25v-8.5A1.75 1.75 0 0 0 13.25 4H9.5V2h3.75c.69 0 1.25.56 1.25 1.25v11c0 .69-.56 1.25-1.25 1.25H2.75C2.06 15.5 1.5 14.94 1.5 14.25v-11C1.5 2.56 2.06 2 2.75 2H5.5v2H2.75Z"></path></svg>'
+        ;;
+        # Documents
+        pdf)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2Zm.5 3.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1Zm0 2h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1 0-1Zm0 2h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1 0-1Zm0 2h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1 0-1Zm0 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1Z"></path></svg>'
+        ;;
+        doc|docx|odt|txt|rtf)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg>'
+        ;;
+        # Spreadsheets
+        xls|xlsx|ods|csv)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v12.5A1.75 1.75 0 0 1 14.25 16H1.75A1.75 1.75 0 0 1 0 14.25ZM6.5 6.5v8h3v-8Zm4.5 0v8h3.25a.25.25 0 0 0 .25-.25V6.5ZM6.5 5h3V1.5h-3Zm-1.5 1.5v8H1.75a.25.25 0 0 1-.25-.25V6.5Zm0-1.5V1.5H1.75a.25.25 0 0 0-.25.25V5Zm6.5 0V1.5h3.25c.138 0 .25.112.25.25V5Z"></path></svg>'
+        ;;
+        # Code
+        html|css|js|json|xml|yml|yaml)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg>'
+        ;;
+        # Executables/binaries
+        exe|bin|app|dmg|deb|rpm)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm7-3.25v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.751.751 0 0 1 7 8.25v-3.5a.75.75 0 0 1 1.5 0Z"></path></svg>'
+        ;;
+        # Keys/certificates
+        gpg|pgp|asc|key|pem|crt|cer)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.5 5.5a4 4 0 1 1 2.731 3.795.75.75 0 0 0-.768.18L7.44 10.5H6.25a.75.75 0 0 0-.75.75v1.19l-.06.06H4.25a.75.75 0 0 0-.75.75v1.19l-.06.06H1.75a.25.25 0 0 1-.25-.25v-1.69l5.024-5.023a.75.75 0 0 0 .181-.768A3.995 3.995 0 0 1 6.5 5.5ZM4.5 0a6.5 6.5 0 0 0-5.348 10.129 1.75 1.75 0 0 0-.102.623v3.498c0 .966.784 1.75 1.75 1.75h3.5a1.75 1.75 0 0 0 1.238-.513l.457-.457c.141-.14.22-.333.22-.53V13.5a.25.25 0 0 1 .25-.25h1a.25.25 0 0 1 .25.25v1a1.75 1.75 0 0 0 1.75 1.75h1a.25.25 0 0 1 .25.25V15a1.75 1.75 0 0 0 1.75 1.75h2.086a1.75 1.75 0 0 0 1.238-.513A6.5 6.5 0 1 0 4.5 0ZM9 5.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0Z"></path></svg>'
+        ;;
+        # Default for unknown types
+        *)
+            echo '<svg class="file-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path></svg>'
+        ;;
+    esac
+}
+
 process_lists() {
     # Process list directives in markdown file
     # $1 = input file
@@ -217,11 +270,29 @@ generate_post_list() {
             desc=$(getvalue "$file" "description")
             # Generate relative URL (convert .md to .html)
             url=$(echo "$file" | sed -e "s|^${src_dir}/||" -e 's/\.md$/.html/')
+            file_mtime_display=""
+            file_mtime_iso=""
         else
-            # Non-markdown file - use filename as title
-            title=$(echo "$filename" | sed -e 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//' -e 's/[-_]/ /g' -e 's/\.[^.]*$//')
-            title=$(echo "$title" | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')
-            desc=""
+            # Non-markdown file - use actual filename (with extension) as title
+            title="$filename"
+            # Compute file size (bytes) and human-readable size
+            size_bytes=$(wc -c < "$file" 2>/dev/null | awk '{print $1}')
+            [ -z "$size_bytes" ] && size_bytes=0
+            size_human=$(awk -v s="$size_bytes" 'BEGIN{split("B KB MB GB TB PB",u);i=1;v=s+0;while(v>=1024 && i<6){v/=1024;i++} if (i==1) printf "%d %s", v,u[i]; else printf "%.1f %s", v,u[i]}')
+            # Get last modified time (ISO and display)
+            file_mtime_iso=$(date -r "$file" "+%Y-%m-%dT%H:%M:%S%z" 2>/dev/null || true)
+            file_mtime_display=$(date -r "$file" "+%Y-%m-%d %H:%M" 2>/dev/null || true)
+            if [ -z "$file_mtime_display" ]; then
+                # Fallback using ls if date -r is unavailable
+                file_mtime_display=$(ls -ld "$file" 2>/dev/null | awk '{print $6 " " $7 " " $8}')
+                file_mtime_iso=""
+            fi
+            # Get file icon based on extension
+            ext="${filename##*.}"
+            [ "$ext" = "$filename" ] && ext="" # No extension
+            ext_lower=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
+            file_icon=$(get_file_icon "$ext_lower")
+            desc="${file_icon} ${size_human} (${size_bytes} bytes)"
             # Generate relative URL (use file as-is)
             url=$(echo "$file" | sed -e "s|^${src_dir}/||")
         fi
@@ -232,6 +303,16 @@ generate_post_list() {
         
         if [ -n "$date" ]; then
             printf '<time datetime="%s">%s</time>\n' "$date" "$date"
+        fi
+        
+        # For non-markdown files, include last modified time if available
+        if [ -n "$file_mtime_display" ]; then
+            # Prefer ISO datetime if available, else use display value for both
+            if [ -n "$file_mtime_iso" ]; then
+                printf '<time datetime="%s">%s</time>\n' "$file_mtime_iso" "$file_mtime_display"
+            else
+                printf '<time datetime="%s">%s</time>\n' "$file_mtime_display" "$file_mtime_display"
+            fi
         fi
         
         if [ -n "$desc" ]; then
@@ -1700,6 +1781,12 @@ __HTML TEMPLATE__
         margin: 0.5em 0 0 0;
         color: #555;
     }
+    .post-entry .file-icon {
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 0.25em;
+        fill: #666;
+    }
     
     /* Pagination */
     .pagination {
@@ -1823,6 +1910,9 @@ __HTML TEMPLATE__
         }
         .pagination .page-info {
             color: #999;
+        }
+        .post-entry .file-icon {
+            fill: #999;
         }
     }
 </style>

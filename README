@@ -137,19 +137,36 @@ List patterns support shell-style globbing:
 
 Lists work with any file type, not just markdown:
 
-- **Markdown files** (`.md`) - Extracts metadata (title, description) from front matter
-- **Other files** (`.pdf`, `.jpg`, `.zip`, etc.) - Uses filename as title
+- **Markdown files** (`.md`)
+  - Title: From metadata or generated from filename
+  - Description: From metadata
+  - Date: Extracted from filename (YYYY-MM-DD pattern)
+  - URL: Converts `.md` to `.html`
+
+- **Other files** (`.pdf`, `.jpg`, `.zip`, `.gpg`, etc.)
+  - Title: Actual filename (with extension)
+  - Description: File size with minimal file type icon
+  - Date: Last modified time (shown in `<time>` element)
+  - URL: Direct link to the file
+
+Non-markdown file listings show:
+- Minimal SVG icon representing file type (document, image, video, archive, etc.)
+- Human-readable file size with exact byte count (e.g., "2.3 MB (2,415,919 bytes)")
+- Last modified timestamp in `<time>` element
 
 Examples:
 
     <!---list:downloads/*.pdf:10--->
-    Lists PDF documents
+    Lists PDF documents with sizes and dates
     
     <!---list:gallery/**/*.jpg:20--->
     Lists images from all subdirectories
     
     <!---list:media/*.mp4:8--->
-    Lists video files
+    Lists video files with metadata
+    
+    <!---list:keys/*.gpg:5--->
+    Lists GPG keys with file information
 
 Custom Heading IDs
 ------------------
