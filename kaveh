@@ -307,10 +307,12 @@ generate_post_list() {
     local files
     if echo "$pattern" | grep -q '/'; then
         # Pattern has path component, use -path
-        files=$(find "${src_dir}" -type f -path "*/${pattern}" 2>/dev/null | sort -r)
+        files=$(find "${src_dir}" -type f -path "*/${pattern}" \
+                ! -name "${KVH_HDR_FILE}" ! -name "${KVH_FTR_FILE}" 2>/dev/null | sort -r)
     else
         # Pattern has no path (e.g., '*', '*.md'), use -name to match in src_dir root
-        files=$(find "${src_dir}" -maxdepth 1 -type f -name "${pattern}" 2>/dev/null | sort -r)
+        files=$(find "${src_dir}" -maxdepth 1 -type f -name "${pattern}" \
+                ! -name "${KVH_HDR_FILE}" ! -name "${KVH_FTR_FILE}" 2>/dev/null | sort -r)
     fi
     local total=$(echo "$files" | wc -l)
     
